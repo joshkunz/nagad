@@ -21,7 +21,7 @@ you can run `brew install ocaml`, or on Debian based Linux distros you can run
 
 Once you have the interpreter running you can type in facts in the form:
 `fact(X, Y, Z).<ENTER>`. When you're done typing in facts you can type:
-`finish.` and the system will echo your facts back to you.
+`finish.<ENTER>` and the system will echo your facts back to you.
 
 # Status:
 
