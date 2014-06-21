@@ -1,18 +1,13 @@
 open Scanf
 open Printf
 
-module FactIO =
-    struct
+let quoted s = "\"" ^ s ^ "\"";;
+let is_empty l = (List.length l) == 0;;
 
+module Fact =
+    struct
     type fact = {head: string; rel: string; tail: string}
     type fact_db = fact list
-
-    let make_fact head rel tail = {head=head; rel=rel; tail=tail};;
-
-    let prompt = "> ";;
-    let err_lead = "!> ";;
-    let repl_err s =
-        print_string @@ err_lead ^ s;;
 
     let display_fact f = 
         print_string @@ 
@@ -27,9 +22,27 @@ module FactIO =
         | car :: cdr ->
             display_fact car;
             display_facts cdr;;
+    end;;
+
+module type REPL_TYPE =
+    sig
+    val prompt: string
+    val err_lead: string
+    end;;
+
+module FactParser =
+    functor (R: REPL_TYPE) -> 
+        struct
+
+    let repl_err s =
+        print_string @@ R.err_lead ^ s;;
+
+    let make_fact head rel tail = { Fact.head=head; 
+                                    Fact.rel=rel; 
+                                    Fact.tail=tail};;
 
     let rec _read_facts fact_db =
-        print_string prompt;
+        print_string R.prompt;
         let line = read_line () in
         try
             if (String.compare line "finish.") == 0 then
@@ -40,12 +53,12 @@ module FactIO =
                      :: fact_db);
         with 
         | End_of_file ->
-            repl_err @@ "\"" ^ line ^ "\"" ^
+            repl_err @@ (quoted line) ^
                         " is not a valid fact string, " ^
                         "it's lacking some parameters.\n";
             _read_facts fact_db;
         | Scanf.Scan_failure s ->
-            repl_err @@ "\"" ^ line ^ "\"" ^
+            repl_err @@ (quoted line) ^
                      " is not a valid fact string.\n";
             repl_err @@ s ^ "\n";
             _read_facts fact_db;;
@@ -53,6 +66,39 @@ module FactIO =
     let read_facts () = _read_facts [];;
     end;;
 
-let my_facts = FactIO.read_facts () in
-print_string "\nFACTS:\n\n";
-FactIO.display_facts my_facts;;
+module NagaFactParser= FactParser(struct
+    let prompt = "fact> ";;
+    let err_lead = "fact! ";;
+end);;
+
+let rec frepl fdb =
+    print_string "> ";
+    let line = read_line () in
+    match line with
+    | "add_facts." ->
+            frepl @@ NagaFactParser.read_facts () @ fdb;
+    | "facts." ->
+            if is_empty fdb then
+                print_string @@ "(empty)\n"
+            else
+                Fact.display_facts fdb;
+            frepl fdb;
+    | "query." ->
+            print_string "Quering is not yet supported.\n";
+            frepl fdb;
+    | "help." ->
+            print_string @@ "Commands: \n" ^
+                            "add_facts.    Add new facts to the fact base.\n" ^
+                            "facts.        Display facts in the fact base.\n" ^
+                            "query.        Write and execute a new query.\n" ^
+                            "finish.       Exit the program.\n"^
+                            "help.         This message\n";
+            frepl fdb;
+    | "finish." -> ();
+    | s -> 
+            print_string @@ (quoted line) ^ " is not a valid command, type " ^
+                            (quoted "finish.") ^ " to exit\n";
+            frepl fdb;;
+
+let repl () = frepl [];;
+repl();;
