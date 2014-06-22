@@ -22,7 +22,7 @@ To make naga, simply run the 'make' command, and then invoke the generated
     $ ./naga
 
 When invoked, the NAGA binary will start a command oriented REPL, you can
-see the list of commands from within the REPL by typing `help.<ENTER>` from
+see the list of commands from within the REPL by running `help.` from
 within the REPL. The Full Documentation is given in the following section.
 
 # Documentation
@@ -56,10 +56,12 @@ with a backslash (\). For example:
 
 Whitespace is not significant in the language. Queries are not currently
 implemented.
+
 Commands:
-fact(a, b, c).      Add a fact to the database.
-facts.              Display facts in the fact base.
-finish. end. done.  Exit the program.
-graph.              Print the DOT representation of this graph.
-help.               Print this message.
-help_full.          Print a much longer help message.
+
+| `fact(a, b, c).`           | Add a fact to the database. |
+| `facts.`                   | Display facts in the fact base. |
+| `finish.`, `end.`, `done.` | Exit the program. |
+| `graph.`                   | Print the DOT representation of this graph. |
+| `help.`                    | Print this message. |
+| `help_full.`               | Print a much longer help message. |
