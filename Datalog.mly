@@ -12,9 +12,8 @@ start:
     | IMPLIES query PERIOD { Query($2) }
 
 query:
-    | { [] }
-    | statement COMMA query 
-    { $1 :: $3 }
+    | statement { $1 :: [] }
+    | statement COMMA query { $1 :: $3}
 
 statement:
     | WORD 

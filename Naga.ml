@@ -1,8 +1,14 @@
-open Scanf
 open Printf
+open Datalog
+open DatalogParse
+open DatalogLex
+open Lexing
+open Parsing
+open List
+open String
 
 let quoted s = "\"" ^ s ^ "\"";;
-let is_empty l = (List.length l) == 0;;
+let is_empty l = (List.length l) = 0;;
 
 module Fact =
     struct
@@ -26,6 +32,12 @@ module Fact =
     let edge_for_fact f =
         f.head ^ " -- " ^ f.tail ^ " [label=" ^ (quoted f.rel) ^ "];\n";;
 
+    let fact_for_list l = 
+        if (List.length l) <> 3 then None else
+            Some { head = List.nth l 0; 
+                   rel  = List.nth l 1; 
+                   tail = List.nth l 2};;
+
     let rec edges_for_facts fs =
         match fs with 
         | [] -> "";
@@ -39,84 +51,109 @@ module Fact =
 
     end;;
 
-module type REPL_TYPE =
-    sig
-    val prompt: string
-    val err_lead: string
-    end;;
+let print_help () = 
+    print_string @@ 
+"Commands:
+fact(a, b, c).      Add a fact to the database.
+facts.              Display facts in the fact base.
+finish. end. done.  Exit the program.
+graph.              Print the DOT representation of this graph.
+help.               Print this message.
+help_full.          Print a much longer help message.
+";;
 
-module FactParser =
-    functor (R: REPL_TYPE) -> 
-        struct
+let print_full_help () = 
+    print_string @@
+"The Naga REPL language is a simple Line-oriented Datalog-like language.
+The system is manipulated by putting a command on each input line. A command
+is of the form: 
+    NAME.
+or of the form:
+    NAME(a [, b]*).
+where the period is significant. A listing of the commands understood 
+by the system is given below.
 
-    let repl_err s =
-        print_string @@ R.err_lead ^ s;;
+Additionally, data in the system can be retrieved through queries. A query is of
+the form:
+    :- command [, command]*.
+These commands can be split across multiple physical lines by ending the line
+with a backslash (\\). For example:
+    :- foo, bar(a, b, c) \\
+       baz(z, e, q).
 
-    let make_fact head rel tail = { Fact.head=head; 
-                                    Fact.rel=rel; 
-                                    Fact.tail=tail};;
+Whitespace is not significant in the language. Queries are not currently
+implemented.
+";
+    print_help ();;
 
-    let rec _read_facts fact_db =
-        print_string R.prompt;
-        let line = read_line () in
-        try
-            if (String.compare line "finish.") == 0 then
-                fact_db
-            else
-                _read_facts @@ 
-                    ((Scanf.sscanf line "fact(%s@, %s@, %s@)." make_fact) 
-                     :: fact_db);
-        with 
-        | End_of_file ->
-            repl_err @@ (quoted line) ^
-                        " is not a valid fact string, " ^
-                        "it's lacking some parameters.\n";
-            _read_facts fact_db;
-        | Scanf.Scan_failure s ->
-            repl_err @@ (quoted line) ^
-                     " is not a valid fact string.\n";
-            repl_err @@ s ^ "\n";
-            _read_facts fact_db;;
 
-    let read_facts () = _read_facts [];;
-    end;;
+let is_continued s =
+    let t = trim s in
+    get t ((length t) - 1) = '\\';;
 
-module NagaFactParser = FactParser(struct
-    let prompt = "fact> ";;
-    let err_lead = "fact! ";;
-end);;
+let pop_continued s = 
+    let t = trim s in
+    sub t 0 ((length t) - 1);;
 
-let rec frepl fdb =
+let try_parse s =
+    try 
+    let lexbuf = Lexing.from_string s in
+        Some (DatalogParse.start DatalogLex.token lexbuf);
+    with 
+    | Parse_error -> None
+    | Failure _ -> None
+
+let fact_for_statement s = Fact.fact_for_list s.body;;
+
+let rec frepl buf fdb =
     print_string "> ";
     let line = read_line () in
-    match line with
-    | "add_facts." ->
-            frepl @@ NagaFactParser.read_facts () @ fdb;
-    | "facts." ->
-            if is_empty fdb then
-                print_string @@ "(empty)\n"
-            else
-                Fact.display_facts fdb;
-            frepl fdb;
-    | "graph." ->
-            print_string @@ Fact.fact_graph fdb;
-            frepl fdb;
-    | "query." ->
-            print_string "Quering is not yet supported.\n";
-            frepl fdb;
-    | "help." ->
-            print_string @@ "Commands: \n" ^
-                            "add_facts.    Add new facts to the fact base.\n" ^
-                            "facts.        Display facts in the fact base.\n" ^
-                            "query.        Write and execute a new query.\n" ^
-                            "finish.       Exit the program.\n"^
-                            "help.         This message\n";
-            frepl fdb;
-    | "finish." -> ();
-    | s -> 
-            print_string @@ (quoted line) ^ " is not a valid command, type " ^
-                            (quoted "finish.") ^ " to exit\n";
-            frepl fdb;;
+    if is_continued line then
+        frepl (buf ^ (pop_continued line)) fdb
+    else
+    begin
+    let continue = frepl "" in
+    match try_parse @@ buf ^ line with
+    | None -> 
+        print_string "Invalid statement.\n";
+        continue fdb;
+    | Some (Statement s) ->
+        (match handle_statement fdb s with
+         | Some fdb -> continue fdb;
+         | None -> fdb);
+    | Some (Query q) ->
+        print_string "Querying is not yet supported.\n";
+        continue fdb;
+    end
+and handle_statement fdb s = 
+    match s.head with
+    | "facts" ->
+        if is_empty fdb then
+            print_string @@ "(empty)\n"
+        else
+            Fact.display_facts fdb;
+        Some fdb;
+    | "graph" ->
+        print_string @@ (Fact.fact_graph fdb) ^ "\n";
+        Some fdb;
+    | "fact" ->
+        let fact = fact_for_statement s in
+        (match fact with
+         | None ->
+             print_string "That is not a valid fact.\n";
+             Some fdb;
+         | Some f ->
+             Some (f :: fdb));
+    | "help" ->
+        print_help (); Some fdb;
+    | "help_full" ->
+        print_full_help (); Some fdb;
+    | "finish" | "end" | "done" -> None;
+    | o ->
+        print_string @@ "That is not a valid command.\n";
+        Some fdb;;
 
-let repl () = frepl [];;
+let repl () = 
+    frepl "" [];;
+
 repl();;
