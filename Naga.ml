@@ -147,7 +147,7 @@ let try_parse s =
     | Failure s -> 
             print_endline s; None;;
 
-let fact_for_statement s = Fact.fact_for_list s.body;;
+let fact_for_statement s = Fact.fact_for_list s.sbody;;
 
 let rec frepl buf fdb =
     print_string "> ";
@@ -170,15 +170,15 @@ let rec frepl buf fdb =
         continue fdb;
     end
 and handle_statement fdb s = 
-    match s.head with
+    match s.shead with
     | "facts" ->
         begin
-        match List.length s.body with
+        match List.length s.sbody with
         | 0 when is_empty fdb ->
             print_string @@ "(empty)\n";
         | 0 -> Fact.display_facts fdb;
         | 1 -> 
-            let f = open_out @@ (List.nth s.body 0) ^ ".facts" in
+            let f = open_out @@ (List.nth s.sbody 0) ^ ".facts" in
             Fact.string_for_facts fdb |> output_string f;
             close_out f;
         | _ ->
@@ -187,11 +187,11 @@ and handle_statement fdb s =
         Some fdb;
     | "graph" ->
         begin
-        match List.length s.body with
+        match List.length s.sbody with
         | 0 -> 
             print_string @@ (Fact.fact_graph fdb) ^ "\n";
         | 1 ->
-            let f = open_out @@ (List.nth s.body 0) ^ ".pdf" in
+            let f = open_out @@ (List.nth s.sbody 0) ^ ".pdf" in
             let (status, pdf) = pdf_for_dot @@ Fact.fact_graph fdb in
             output_string f pdf;
             close_out f;
@@ -209,9 +209,9 @@ and handle_statement fdb s =
              Some (f :: fdb));
     | "help" ->
         begin
-        match List.length s.body with
+        match List.length s.sbody with
         | 0 -> print_help (); 
-        | 1 when (List.nth s.body 0 = "full") -> print_full_help ();
+        | 1 when (List.nth s.sbody 0 = "full") -> print_full_help ();
         | _ ->
             print_endline "Help statement has too many, or an unknown parameter.";
         end;
