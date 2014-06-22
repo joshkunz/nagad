@@ -1,3 +1,7 @@
+{
+    open DatalogParse
+}
+
 let WORD = ['a'-'z''A'-'Z''0'-'9' '_' '-']+
 let LPAREN = '('
 let RPAREN = ')'
@@ -13,4 +17,5 @@ rule token = parse
     | PERIOD      { PERIOD }
     | COMMA       { COMMA }
     | IMPLIES     { IMPLIES }
-    | WS          {}
+    (* Whitespace matches discard the match and re-invoke the tokenizer *)
+    | WS          { token lexbuf }

@@ -1,12 +1,6 @@
 %{
-module Datalog =
-    struct
-        type statement = {head: string; body: string list};;
-        type query = Statement list;;
-        type fragment = Statement of statement | Query of query;;
-    end;;
+    open Datalog
 %}
-
 %token LPAREN RPAREN PERIOD COMMA IMPLIES
 %token <string> WORD
 %start start
@@ -14,8 +8,8 @@ module Datalog =
 %%
 
 start:
-    | statement PERIOD { $1 }
-    | IMPLIES query PERIOD { $2 }
+    | statement PERIOD { Statement($1) }
+    | IMPLIES query PERIOD { Query($2) }
 
 query:
     | { [] }

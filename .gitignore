@@ -2,3 +2,7 @@
 *.cmo
 *.cmi
 naga
+
+DatalogLex.ml
+DatalogParse.ml
+DatalogParse.mli
