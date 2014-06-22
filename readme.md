@@ -68,4 +68,4 @@ Commands:
 | `graph(name).` | Write out a PDF of the knowledge graph to a file named 'name.pdf'. Overwrites any file with that name in this directory. |
 | `finish.`, `end.`, `done.` | Exit the program. |
 | `help.` | Print this message. |
-| `help_full.` | Print a much longer help message. |
+| `help(full).` | Print a much longer help message. |

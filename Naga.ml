@@ -101,7 +101,7 @@ graph(name).        Write out a PDF of the knowledge graph to a file named
                     directory.
 finish. end. done.  Exit the program.
 help.               Print this message.
-help_full.          Print a much longer help message.
+help(full).         Print a much longer help message.
 ";;
 
 let print_full_help () = 
@@ -208,7 +208,14 @@ and handle_statement fdb s =
          | Some f ->
              Some (f :: fdb));
     | "help" ->
-        print_help (); Some fdb;
+        begin
+        match List.length s.body with
+        | 0 -> print_help (); 
+        | 1 when (List.nth s.body 0 = "full") -> print_full_help ();
+        | _ ->
+            print_endline "Help statement has too many, or an unknown parameter.";
+        end;
+        Some fdb;
     | "help_full" ->
         print_full_help (); Some fdb;
     | "finish" | "end" | "done" -> None;
