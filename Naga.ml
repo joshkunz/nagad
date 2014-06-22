@@ -6,6 +6,7 @@ open Lexing
 open Parsing
 open List
 open String
+open Unix
 
 let quoted s = "\"" ^ s ^ "\"";;
 let is_empty l = (List.length l) = 0;;
@@ -15,19 +16,23 @@ module Fact =
     type fact = {head: string; rel: string; tail: string}
     type fact_db = fact list
 
-    let display_fact f = 
-        print_string @@ 
+    let string_for_fact f =
         "fact(" ^ 
         f.head ^ ", " ^
         f.rel ^ ", " ^
         f.tail ^ ").\n";;
 
-    let rec display_facts fs =
+    let rec string_for_facts fs = 
         match fs with
-        | [] -> () 
+        | [] -> ""
         | car :: cdr ->
-            display_fact car;
-            display_facts cdr;;
+            string_for_fact car ^ string_for_facts cdr;;
+
+    let display_fact f = 
+        string_for_fact f |> print_string;;
+
+    let display_facts fs =
+        string_for_facts fs |> print_string;;
 
     let edge_for_fact f =
         f.head ^ " -- " ^ f.tail ^ " [label=" ^ (quoted f.rel) ^ "];\n";;
@@ -51,13 +56,50 @@ module Fact =
 
     end;;
 
+let string_for_char_list cs =
+    let s = String.create (List.length cs) in
+    let rec fills s cl i =
+        match cl with
+        | [] -> s;
+        | c :: cs ->
+            s.[i - 1] <- c;
+            (* Write the characters bacwards because they're reversed *)
+            fills s cs (i - 1); in
+    fills s cs (List.length cs);;
+
+let input_string ch =
+    let rec input_all_chars ch buf =
+        try
+            let c = input_char ch in
+            input_all_chars ch (c :: buf);
+        with End_of_file -> buf in
+    string_for_char_list @@ input_all_chars ch [];;
+
+exception Terminated_abnormally
+
+let pdf_for_dot graph =
+    let (proc_out, proc_in) = Unix.open_process "dot -Tpdf" in
+    output_string proc_in graph;
+    flush proc_in;
+    close_out proc_in;
+    let pdf = input_string proc_out in
+    match Unix.close_process (proc_out, proc_in) with
+    | WEXITED i -> (i, pdf)
+    | _ -> raise Terminated_abnormally;;
+
 let print_help () = 
     print_string @@ 
 "Commands:
 fact(a, b, c).      Add a fact to the database.
 facts.              Display facts in the fact base.
+facts(name).        Write a list of the facts in the fact base to a file
+                    named 'name.facts', any files with the same name are
+                    overwritten.
+graph.              Print out the DOT representation of this graph.
+graph(name).        Write out a PDF of the knowledge graph to a file named
+                    'name.pdf'. Overwrites any file with that name in this
+                    directory.
 finish. end. done.  Exit the program.
-graph.              Print the DOT representation of this graph.
 help.               Print this message.
 help_full.          Print a much longer help message.
 ";;
@@ -83,6 +125,7 @@ with a backslash (\\). For example:
 
 Whitespace is not significant in the language. Queries are not currently
 implemented.
+
 ";
     print_help ();;
 
@@ -101,7 +144,8 @@ let try_parse s =
         Some (DatalogParse.start DatalogLex.token lexbuf);
     with 
     | Parse_error -> None
-    | Failure _ -> None
+    | Failure s -> 
+            print_endline s; None;;
 
 let fact_for_statement s = Fact.fact_for_list s.body;;
 
@@ -128,13 +172,32 @@ let rec frepl buf fdb =
 and handle_statement fdb s = 
     match s.head with
     | "facts" ->
-        if is_empty fdb then
-            print_string @@ "(empty)\n"
-        else
-            Fact.display_facts fdb;
+        begin
+        match List.length s.body with
+        | 0 when is_empty fdb ->
+            print_string @@ "(empty)\n";
+        | 0 -> Fact.display_facts fdb;
+        | 1 -> 
+            let f = open_out @@ (List.nth s.body 0) ^ ".facts" in
+            Fact.string_for_facts fdb |> output_string f;
+            close_out f;
+        | _ ->
+            print_endline "Facts statement has too many parameters.";
+        end;
         Some fdb;
     | "graph" ->
-        print_string @@ (Fact.fact_graph fdb) ^ "\n";
+        begin
+        match List.length s.body with
+        | 0 -> 
+            print_string @@ (Fact.fact_graph fdb) ^ "\n";
+        | 1 ->
+            let f = open_out @@ (List.nth s.body 0) ^ ".pdf" in
+            let (status, pdf) = pdf_for_dot @@ Fact.fact_graph fdb in
+            output_string f pdf;
+            close_out f;
+        | _ ->
+            print_endline "Graph statement has too many parameters."
+        end;
         Some fdb;
     | "fact" ->
         let fact = fact_for_statement s in

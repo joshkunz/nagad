@@ -9,12 +9,13 @@ bin = naga
 par_prefix = Datalog
 lex_prefix = $(par_prefix)Lex
 yacc_prefix = $(par_prefix)Parse
+libs = unix
 
 objects = $(yacc_prefix).cmo $(lex_prefix).cmo 
 objects += Datalog.cmo Naga.cmo
 
 $(bin): $(objects)
-	ocamlc $(OCAMLFLAGS) -o $@ $^
+	ocamlc $(OCAMLFLAGS) -o $@ $(addsuffix .cma,$(libs)) $^
 
 Datalog.cmi: Datalog.cmo
 

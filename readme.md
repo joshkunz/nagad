@@ -49,7 +49,7 @@ the form:
     :- command [, command]*.
 
 These commands can be split across multiple physical lines by ending the line
-with a backslash (\). For example:
+with a backslash (\\). For example:
 
     :- foo, bar(a, b, c) \
        baz(z, e, q).
@@ -59,11 +59,34 @@ implemented.
 
 Commands:
 
-|                            |                             |
-|----------------------------|-----------------------------|
-| `fact(a, b, c).`           | Add a fact to the database. |
-| `facts.`                   | Display facts in the fact base. |
-| `finish.`, `end.`, `done.` | Exit the program. |
-| `graph.`                   | Print the DOT representation of this graph. |
-| `help.`                    | Print this message. |
-| `help_full.`               | Print a much longer help message. |
+<table>
+<tr>
+ <td>`fact(a, b, c).`</td>
+ <td>Add a fact to the database.</td>
+</tr><tr>
+ <td>`facts.`</td>
+ <td>Display facts in the fact base.</td>
+</tr><tr>
+ <td>`facts(name).`</td>
+ <td>Write a list of the facts in the fact base to a file named 'name.facts', 
+     any files with the same name are overwritten.
+ </td>
+</tr><tr>
+ <td>`graph.`</td>
+ <td>Print out the DOT representation of this graph.</td>
+</tr><tr>
+ <td>`graph(name).`</td>
+ <td>Write out a PDF of the knowledge graph to a file named 'name.pdf'. 
+     Overwrites any file with that name in this directory.
+ </td>
+</tr><tr>
+ <td>`finish.`, `end.`, `done.`</td>
+ <td>Exit the program.</td>
+</tr><tr>
+ <td>`help.`</td>
+ <td>Print this message.</td>
+</tr><tr>
+ <td>`help_full.`</td>
+ <td>Print a much longer help message.</td>
+</tr>
+</table>

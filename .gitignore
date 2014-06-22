@@ -1,6 +1,8 @@
 *.swp
 *.cmo
 *.cmi
+*.pdf
+*.facts
 naga
 
 DatalogLex.ml
