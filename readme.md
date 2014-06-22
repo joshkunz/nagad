@@ -59,6 +59,7 @@ implemented.
 
 Commands:
 
+|                            |                             |
 |----------------------------|-----------------------------|
 | `fact(a, b, c).`           | Add a fact to the database. |
 | `facts.`                   | Display facts in the fact base. |
