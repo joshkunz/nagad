@@ -22,6 +22,21 @@ module Fact =
         | car :: cdr ->
             display_fact car;
             display_facts cdr;;
+
+    let edge_for_fact f =
+        f.head ^ " -- " ^ f.tail ^ " [label=" ^ (quoted f.rel) ^ "];\n";;
+
+    let rec edges_for_facts fs =
+        match fs with 
+        | [] -> "";
+        | f :: fs ->
+                (edge_for_fact f) ^ (edges_for_facts fs);;
+
+    let fact_graph fs = 
+        "graph {\n" ^
+        (edges_for_facts fs) ^
+        "}";;
+
     end;;
 
 module type REPL_TYPE =
@@ -66,7 +81,7 @@ module FactParser =
     let read_facts () = _read_facts [];;
     end;;
 
-module NagaFactParser= FactParser(struct
+module NagaFactParser = FactParser(struct
     let prompt = "fact> ";;
     let err_lead = "fact! ";;
 end);;
@@ -82,6 +97,9 @@ let rec frepl fdb =
                 print_string @@ "(empty)\n"
             else
                 Fact.display_facts fdb;
+            frepl fdb;
+    | "graph." ->
+            print_string @@ Fact.fact_graph fdb;
             frepl fdb;
     | "query." ->
             print_string "Quering is not yet supported.\n";
