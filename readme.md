@@ -31,31 +31,19 @@ within the REPL. The Full Documentation is given in the following section.
 > naga REPL.
 
 The Naga REPL language is a simple Line-oriented Datalog-like language.
-The system is manipulated by putting a command on each input line. A command
-is of the form: 
+The Datalog language is as follows:
 
-    NAME.
+    statement = NAME. | NAME(values).
+    values = variable [, values] | value [, values]
+    variable = *starts with uppercase*
+    value = *starts with lowercase*
 
-or of the form:
-
-    NAME(a [, b]*).
-
-where the period is significant. A listing of the commands understood 
-by the system is given below.
-
-Additionally, data in the system can be retrieved through queries. A query is of
-the form:
-
-    :- command [, command]*.
-
-These commands can be split across multiple physical lines by ending the line
-with a backslash (\\). For example:
-
-    :- foo, bar(a, b, c) \
-       baz(z, e, q).
-
-Whitespace is not significant in the language. Queries are not currently
-implemented.
+The system is manipulated through commands, as listing of which is given below.
+Commands are expressed as basic datatlog statements that provide a specific
+function. The facts in the system (inserted with the 'fact' command) can be
+queried by specifying a statement with at least one variable. Additionaly,
+AND constraints can be placed on the query by seperating statements with
+a comma.
 
 Commands:
 
@@ -66,6 +54,6 @@ Commands:
 | `facts(name).` | Write a list of the facts in the fact base to a file named 'name.facts', any files with the same name are overwritten. |
 | `graph.` | Print out the DOT representation of this graph. |
 | `graph(name).` | Write out a PDF of the knowledge graph to a file named 'name.pdf'. Overwrites any file with that name in this directory. |
-| `finish.`, `end.`, `done.` | Exit the program. |
+| `finish.`, `end.`, `done.`, `exit.` | Exit the program. |
 | `help.` | Print this message. |
 | `help(full).` | Print a much longer help message. |
