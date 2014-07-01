@@ -8,6 +8,8 @@ open List
 open String
 open Unix
 
+type parse_result = NoData | ParseError | Parsed of Datalog.classified;;
+
 let quoted s = "\"" ^ s ^ "\"";;
 let is_empty l = (List.length l) = 0;;
 
@@ -99,7 +101,8 @@ graph.              Print out the DOT representation of this graph.
 graph(name).        Write out a PDF of the knowledge graph to a file named
                     'name.pdf'. Overwrites any file with that name in this
                     directory.
-finish. end. done.  Exit the program.
+finish. end. done.  
+    exit.           Exits the program
 help.               Print this message.
 help(full).         Print a much longer help message.
 ";;
@@ -107,78 +110,70 @@ help(full).         Print a much longer help message.
 let print_full_help () = 
     print_string @@
 "The Naga REPL language is a simple Line-oriented Datalog-like language.
-The system is manipulated by putting a command on each input line. A command
-is of the form: 
-    NAME.
-or of the form:
-    NAME(a [, b]*).
-where the period is significant. A listing of the commands understood 
-by the system is given below.
+The Datalog language is as follows:
 
-Additionally, data in the system can be retrieved through queries. A query is of
-the form:
-    :- command [, command]*.
-These commands can be split across multiple physical lines by ending the line
-with a backslash (\\). For example:
-    :- foo, bar(a, b, c) \\
-       baz(z, e, q).
+    statement = NAME. | NAME(values).
+    values = variable [, values] | value [, values]
+    variable = *starts with uppercase*
+    value = *starts with lowercase*
 
-Whitespace is not significant in the language. Queries are not currently
-implemented.
-
+The system is manipulated through commands, as listing of which is given below.
+Commands are expressed as basic datatlog statements that provide a specific
+function. The facts in the system (inserted with the 'fact' command) can be
+queried by specifying a statement with at least one variable. Additionaly,
+AND constraints can be placed on the query by seperating statements with
+a comma.
 ";
     print_help ();;
-
-
-let is_continued s =
-    let t = trim s in
-    get t ((length t) - 1) = '\\';;
-
-let pop_continued s = 
-    let t = trim s in
-    sub t 0 ((length t) - 1);;
 
 let try_parse s =
     try 
     let lexbuf = Lexing.from_string s in
-        Some (DatalogParse.start DatalogLex.token lexbuf);
+        Parsed (Datalog.classify (DatalogParse.start DatalogLex.token lexbuf));
     with 
-    | Parse_error -> None
-    | Failure s -> 
-            print_endline s; None;;
+    | Parse_error -> 
+        print_string "Got a parse error exception.\n";
+        ParseError;
+    | DatalogLex.Eof -> NoData;;
 
-let fact_for_statement s = Fact.fact_for_list s.sbody;;
+let fact_for_statement s = 
+    let rec value_list = function
+        | [] -> [];
+        | Value(x) :: xs -> x :: value_list xs;
+        | _ -> raise (Failure "fact_for_statement: Not a statement.");
+    in
+    Fact.fact_for_list @@ value_list s.body;;
 
 let rec frepl buf fdb =
-    print_string "> ";
-    let line = read_line () in
-    if is_continued line then
-        frepl (buf ^ (pop_continued line)) fdb
+    if buf = "" then
+        print_string "> "
     else
-    begin
-    let continue = frepl "" in
-    match try_parse @@ buf ^ line with
-    | None -> 
+        print_string "... ";
+    let line = read_line () in
+    let cbuf = buf ^ line in
+    match try_parse cbuf with
+    | ParseError -> 
         print_string "Invalid statement.\n";
-        continue fdb;
-    | Some (Statement s) ->
-        (match handle_statement fdb s with
-         | Some fdb -> continue fdb;
-         | None -> fdb);
-    | Some (Query q) ->
+        frepl "" fdb;
+    | NoData ->
+        frepl cbuf fdb;
+    | Parsed Query(q) ->
         print_string "Querying is not yet supported.\n";
-        continue fdb;
-    end
+        frepl "" fdb;
+    | Parsed Statement(s) ->
+        (match handle_statement fdb s with
+         | Some fdb -> frepl "" fdb;
+         | None -> fdb);
 and handle_statement fdb s = 
-    match s.shead with
+    match s.head with
     | "facts" ->
         begin
-        match List.length s.sbody with
-        | 0 when is_empty fdb ->
+        match s.body with
+        | [] when is_empty fdb ->
             print_string @@ "(empty)\n";
-        | 0 -> Fact.display_facts fdb;
-        | 1 -> 
-            let f = open_out @@ (List.nth s.sbody 0) ^ ".facts" in
+        | [] -> Fact.display_facts fdb;
+        | Value(name) :: [] -> 
+            let f = open_out @@ name ^ ".facts" in
             Fact.string_for_facts fdb |> output_string f;
             close_out f;
         | _ ->
@@ -187,11 +182,11 @@ and handle_statement fdb s =
         Some fdb;
     | "graph" ->
         begin
-        match List.length s.sbody with
-        | 0 -> 
+        match s.body with
+        | [] -> 
             print_string @@ (Fact.fact_graph fdb) ^ "\n";
-        | 1 ->
-            let f = open_out @@ (List.nth s.sbody 0) ^ ".pdf" in
+        | Value(name) :: [] ->
+            let f = open_out @@ name ^ ".pdf" in
             let (status, pdf) = pdf_for_dot @@ Fact.fact_graph fdb in
             output_string f pdf;
             close_out f;
@@ -207,19 +202,17 @@ and handle_statement fdb s =
              Some fdb;
          | Some f ->
              Some (f :: fdb));
-    | "help" ->
+    | "help" | "commands" ->
         begin
-        match List.length s.sbody with
-        | 0 -> print_help (); 
-        | 1 when (List.nth s.sbody 0 = "full") -> print_full_help ();
+        match s.body with
+        | [] -> print_help (); 
+        | Value("full") :: [] -> print_full_help ();
         | _ ->
             print_endline "Help statement has too many, or an unknown parameter.";
         end;
         Some fdb;
-    | "help_full" ->
-        print_full_help (); Some fdb;
     | "finish" | "end" | "done" -> None;
-    | o ->
+    | _ ->
         print_string @@ "That is not a valid command.\n";
         Some fdb;;
 

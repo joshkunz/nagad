@@ -1,5 +1,6 @@
 {
     open DatalogParse
+    exception Unknown_token
     exception Eof
 }
 
@@ -7,7 +8,6 @@ let LPAREN = '('
 let RPAREN = ')'
 let PERIOD = '.'
 let COMMA = ','
-let IMPLIES = ":-"
 let WS = [' ' '\t' '\n']
 let lower = ['a'-'z']
 let upper = ['A'-'Z']
@@ -23,7 +23,7 @@ rule token = parse
     | RPAREN      { RPAREN }
     | PERIOD      { PERIOD }
     | COMMA       { COMMA }
-    | IMPLIES     { IMPLIES }
     (* Whitespace matches discard the match and re-invoke the tokenizer *)
     | WS+         { token lexbuf }
     | eof         { raise Eof }
+    | _           { raise Unknown_token }

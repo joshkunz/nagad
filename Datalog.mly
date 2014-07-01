@@ -1,41 +1,30 @@
 %{
     open Datalog
 %}
-%token LPAREN RPAREN PERIOD COMMA IMPLIES
+%token LPAREN RPAREN PERIOD COMMA
 %token <string> WORD
 %token <string> VAR
 %start start
 %type <Datalog.fragment> start
 %%
 
-start:
-    | statement PERIOD { Statement($1) }
-    | IMPLIES query PERIOD { Query($2) }
+start: 
+    | fragment PERIOD { $1 }
+
+fragment:
+    | statement { $1 :: [] }
+    | statement COMMA fragment { $1 :: $3 }
 
 statement:
     | WORD 
-    { {Datalog.shead=$1; Datalog.sbody=[]} }
+    { {Datalog.head=$1; Datalog.body=[]} }
     | WORD LPAREN values RPAREN 
-    { {Datalog.shead=$1; Datalog.sbody=$3} }
+    { {Datalog.head=$1; Datalog.body=$3} }
 
-values:
-    | WORD  { $1 :: [] }
-    | WORD COMMA values { $1 :: $3 }
+values: 
+    | value  { $1 :: [] }
+    | value COMMA values { $1 :: $3 }
 
-query:
-    | query_statement { $1 :: [] }
-    | query_statement COMMA query { $1 :: $3}
-
-query_statement:
-    | WORD
-    { {Datalog.qhead=$1; Datalog.qbody=[]} }
-    | WORD LPAREN query_values RPAREN
-    { {Datalog.qhead=$1; Datalog.qbody=$3} }
-
-query_values:
-    | WORD { Value($1) :: [] }
-    | VAR { Variable($1) :: [] }
-    | WORD COMMA query_values { Value($1) :: $3 }
-    | VAR COMMA query_values { Variable($1) :: $3 }
-
-
+value:
+    | WORD { Value($1) }
+    | VAR { Variable($1) }
