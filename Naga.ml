@@ -15,8 +15,8 @@ let is_empty l = (List.length l) = 0;;
 
 module Fact =
     struct
-    type fact = {head: string; rel: string; tail: string}
-    type fact_db = fact list
+    type fact = {head: string; rel: string; tail: string};;
+    type fact_db = fact list;;
 
     let string_for_fact f =
         "fact(" ^ 
@@ -57,6 +57,110 @@ module Fact =
         "}";;
 
     end;;
+
+
+module Query : sig
+    open Fact
+    type query_item = Variable of string | Value of string
+    type qtri = query_item * query_item * query_item
+    type query = qtri list
+
+    type context_entry = string * string
+    type context = context_entry list
+
+    val in_context : string -> context -> bool
+    val edge_pairs : qtri -> Fact.fact -> (query_item * string) list
+    val field_match : (query_item * string) -> context -> (bool * context)
+    val edge_pairs_matched : (query_item * string) list -> context -> (bool * context)
+    val matches_of : qtri -> Fact.fact_db -> context -> (Fact.fact * context) list
+    val query_graph : query -> Fact.fact_db -> Fact.fact_db list
+    end = 
+    struct
+    open Fact
+    type query_item = Variable of string | Value of string
+    type qtri = query_item * query_item * query_item
+    type query = qtri list
+
+    type context_entry = string * string
+    type context = context_entry list
+
+    let rec context_as_string = function 
+        | [] -> ""
+        | (c1, c2) :: cs -> 
+            ("(" ^ c1 ^ ", " ^ c2 ^ ")\n") ^ (context_as_string cs);;
+
+    let in_context v context =
+        try 
+            List.assoc v context |> ignore; true;
+        with
+        | Not_found -> false;;
+
+    let rec pop_edge graph edge =
+        match graph with 
+        | [] -> [] 
+        | e :: es when e = edge -> es
+        | e :: es -> e :: (pop_edge es edge);;
+
+    let edge_pairs (q1, q2, q3) (e : Fact.fact) = 
+        [(q1, e.head); (q2, e.rel); (q3, e.tail)];;
+
+    let field_match (qfield, efield) context =
+        match qfield with
+        | Variable x ->
+            if in_context x context then 
+                (efield = (List.assoc x context), context)
+            else
+                (* If there is not binding for the variable in the context,
+                 * then automatically match and add the binding *)
+                (true, (x, efield) :: context)
+        | Value x -> (efield = x, context);;
+
+    let edge_pairs_matched pairs context =
+        let reducer (v, c) x = 
+            let (nv, nc) = field_match x c in ((v && nv), nc);
+        in
+        List.fold_left reducer (true, context) pairs;;
+
+    let rec matches_of qt kgraph context =
+        match kgraph with
+        | [] -> []
+        | fact :: facts ->
+            let (did_match, _context) = 
+                (* 
+                print_string "Checking fact:";
+                Fact.display_fact fact;
+                print_string @@ "With Context:\n" ^ (context_as_string context);
+                *)
+                edge_pairs_matched (edge_pairs qt fact) context
+            in
+            if did_match then 
+                (* 
+                begin
+                print_string "Fact matched: ";
+                Fact.display_fact fact; 
+                *)
+                (fact, _context) :: (matches_of qt facts context)
+            else
+                (matches_of qt facts _context);;
+
+    let rec query_tree query kgraph context path = 
+        match query with
+        | [] -> [path]
+        | q :: qs -> 
+            matches_of q kgraph context |> mapping qs kgraph path 
+    and mapping qs kgraph path edges =
+        match edges with
+        | [] -> []
+        | (e, cntxt) :: es ->
+            let fpath = 
+                query_tree qs (pop_edge kgraph e) cntxt (e :: path)
+            in
+            fpath @ (mapping qs kgraph path es)
+
+    let query_graph query kgraph =
+        query_tree query kgraph [] [];;
+    end;;
+
 
 let string_for_char_list cs =
     let s = String.create (List.length cs) in
@@ -158,7 +262,7 @@ let rec frepl buf fdb =
     | NoData ->
         frepl cbuf fdb;
     | Parsed Query(q) ->
-        print_string "Querying is not yet supported.\n";
+        handle_query fdb q;
         frepl "" fdb;
     | Parsed Statement(s) ->
         (match handle_statement fdb s with
@@ -214,7 +318,26 @@ and handle_statement fdb s =
     | "finish" | "end" | "done" -> None;
     | _ ->
         print_string @@ "That is not a valid command.\n";
-        Some fdb;;
+        Some fdb
+and handle_query fdb q = 
+    let item_for_value = function 
+        | Value v -> Query.Value v
+        | Variable v -> Query.Variable v in
+    let triple_for_body = function
+        | a :: b :: c :: [] -> (a, b, c)
+        | _ -> raise (Failure "triple_for_body: To many items.") in
+    let mapper s =
+        triple_for_body @@ List.map item_for_value s.body in
+    let query = List.map mapper q in
+
+    let rec query_printer index results = 
+        match results with 
+        | [] -> print_string "End of results.\n"
+        | q :: qs ->
+            printf "Result %i:\n" index;
+            Fact.display_facts q;
+            query_printer (index + 1) qs in
+    Query.query_graph query fdb |> query_printer 1;;
 
 let repl () = 
     frepl "" [];;
