@@ -49,12 +49,12 @@ module Fact =
         match fs with 
         | [] -> "";
         | f :: fs ->
-                (edge_for_fact f) ^ (edges_for_facts fs);;
+            (edge_for_fact f) ^ (edges_for_facts fs);;
 
-    let fact_graph fs = 
-        "graph {\n" ^
-        (edges_for_facts fs) ^
-        "}";;
+    let generic_fact_graph fs preamble epilogue =
+        preamble ^ (edges_for_facts fs) ^ epilogue;;
+
+    let fact_graph fs = generic_fact_graph fs "graph {\n" "}";;
 
     end;;
 
@@ -248,6 +248,57 @@ let fact_for_statement s =
     in
     Fact.fact_for_list @@ value_list s.body;;
 
+let rec query_textual index results = 
+    match results with 
+    | [] -> "End of results.\n"
+    | q :: qs ->
+          (sprintf "Result %i:\n" index)
+        ^ (Fact.string_for_facts q)
+        ^ (query_textual (index + 1) qs);;
+
+let rec unique_db postfix (facts : Fact.fact_db) =
+    match facts with
+    | [] -> []
+    | s :: ss -> 
+        {Fact.head = s.head ^ postfix;
+         Fact.rel = s.rel;
+         Fact.tail = s.head ^ postfix} :: unique_db postfix ss;;
+
+let query_graph results =
+    let rec query_subgraphs index res =
+        match res with
+        | [] -> ""
+        | r :: rs ->
+            (Fact.generic_fact_graph 
+                (unique_db (string_of_int index) r)
+                "subgraph {\n" "}\n") ^ (query_subgraphs (succ index) rs) in
+    "graph {\n" ^ (query_subgraphs 0 results) ^ "}\n";;
+
+let echo_result res = query_textual 0 res |> print_string;;
+
+let query_result s = 
+    match s.head with 
+    | "text" ->
+        (match s.body with 
+         | [] -> echo_result 
+         | Value (name) :: [] -> 
+            fun res -> 
+                let f = open_out @@ name ^ ".facts" in
+                query_textual 0 res |> output_string f;
+                close_out f
+         | _ -> raise (Failure "Case not Handled."))
+    | "graph" ->
+        (match s.body with
+         | [] -> (fun res -> query_graph res |> print_string)
+         | Value(name) :: [] ->
+            fun res ->
+                let f = open_out @@ name ^ ".pdf" in
+                let (status, pdf) = pdf_for_dot @@ query_graph res in
+                output_string f pdf;
+                close_out f;
+         | _ -> raise (Failure "Case not handled."))
+    | _ -> raise (Failure "Unknown implication.");;
+
 let rec frepl buf fdb =
     if buf = "" then
         print_string "> "
@@ -261,8 +312,11 @@ let rec frepl buf fdb =
         frepl "" fdb;
     | NoData ->
         frepl cbuf fdb;
+    | Parsed Implication(i) ->
+        handle_query fdb i.by (query_result i.implied);
+        frepl "" fdb;
     | Parsed Query(q) ->
-        handle_query fdb q;
+        handle_query fdb q echo_result;
         frepl "" fdb;
     | Parsed Statement(s) ->
         (match handle_statement fdb s with
@@ -319,7 +373,7 @@ and handle_statement fdb s =
     | _ ->
         print_string @@ "That is not a valid command.\n";
         Some fdb
-and handle_query fdb q = 
+and handle_query fdb q handler = 
     let item_for_value = function 
         | Value v -> Query.Value v
         | Variable v -> Query.Variable v in
@@ -329,15 +383,7 @@ and handle_query fdb q =
     let mapper s =
         triple_for_body @@ List.map item_for_value s.body in
     let query = List.map mapper q in
-
-    let rec query_printer index results = 
-        match results with 
-        | [] -> print_string "End of results.\n"
-        | q :: qs ->
-            printf "Result %i:\n" index;
-            Fact.display_facts q;
-            query_printer (index + 1) qs in
-    Query.query_graph query fdb |> query_printer 1;;
+    Query.query_graph query fdb |> handler;;
 
 let repl () = 
     frepl "" [];;

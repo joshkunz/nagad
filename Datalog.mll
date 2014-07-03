@@ -8,6 +8,7 @@ let LPAREN = '('
 let RPAREN = ')'
 let PERIOD = '.'
 let COMMA = ','
+let IMPL = ":-"
 let WS = [' ' '\t' '\n']
 let lower = ['a'-'z']
 let upper = ['A'-'Z']
@@ -23,6 +24,7 @@ rule token = parse
     | RPAREN      { RPAREN }
     | PERIOD      { PERIOD }
     | COMMA       { COMMA }
+    | IMPL        { IMPL }
     (* Whitespace matches discard the match and re-invoke the tokenizer *)
     | WS+         { token lexbuf }
     | eof         { raise Eof }

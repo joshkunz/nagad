@@ -1,15 +1,17 @@
 %{
     open Datalog
 %}
-%token LPAREN RPAREN PERIOD COMMA
+%token LPAREN RPAREN PERIOD COMMA IMPL
 %token <string> WORD
 %token <string> VAR
 %start start
-%type <Datalog.fragment> start
+%type <Datalog.parse_result> start
 %%
 
 start: 
-    | fragment PERIOD { $1 }
+    | statement IMPL fragment PERIOD 
+    { Implication {Datalog.implied=$1; Datalog.by=$3} }
+    | fragment PERIOD { Fragment ($1) }
 
 fragment:
     | statement { $1 :: [] }
