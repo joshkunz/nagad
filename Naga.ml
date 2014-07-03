@@ -89,6 +89,16 @@ module Query : sig
         | (c1, c2) :: cs -> 
             ("(" ^ c1 ^ ", " ^ c2 ^ ")\n") ^ (context_as_string cs);;
 
+    let qitem_as_string = function
+        | Variable a -> a ^ "?"
+        | Value a -> a;;
+
+    let rec qtri_as_string = function
+        | (a, b, c) ->
+            "(" ^ (qitem_as_string a) ^ ", "
+                ^ (qitem_as_string b) ^ ", "
+                ^ (qitem_as_string c) ^ ")";;
+
     let in_context v context =
         try 
             List.assoc v context |> ignore; true;
@@ -126,28 +136,18 @@ module Query : sig
         | [] -> []
         | fact :: facts ->
             let (did_match, _context) = 
-                (* 
-                print_string "Checking fact:";
-                Fact.display_fact fact;
-                print_string @@ "With Context:\n" ^ (context_as_string context);
-                *)
                 edge_pairs_matched (edge_pairs qt fact) context
             in
             if did_match then 
-                (* 
-                begin
-                print_string "Fact matched: ";
-                Fact.display_fact fact; 
-                *)
                 (fact, _context) :: (matches_of qt facts context)
             else
-                (matches_of qt facts _context);;
+                (matches_of qt facts context);;
 
     let rec query_tree query kgraph context path = 
         match query with
         | [] -> [path]
         | q :: qs -> 
-            matches_of q kgraph context |> mapping qs kgraph path 
+            matches_of q kgraph context |> mapping qs kgraph path
     and mapping qs kgraph path edges =
         match edges with
         | [] -> []
