@@ -1,3 +1,4 @@
+open Sys
 open Printf
 open Lexing
 open Parsing
@@ -48,16 +49,6 @@ AND constraints can be placed on the query by seperating statements with
 a comma.
 ";
     print_help ();;
-
-let try_parse s =
-    try 
-    let lexbuf = Lexing.from_string s in
-        Parsed (Datalog.classify (DatalogParse.start DatalogLex.token lexbuf));
-    with 
-    | Parse_error -> 
-        print_string "Got a parse error exception.\n";
-        ParseError;
-    | DatalogLex.Eof -> NoData;;
 
 let fact_for_statement s = 
     let rec value_list = function
@@ -140,30 +131,7 @@ let show_results (s : Datalog.statement) results =
         end
     | _ -> raise (Failure "Unknown query output.");;
 
-let rec frepl buf fdb =
-    if buf = "" then
-        print_string "> "
-    else
-        print_string "... ";
-    let line = read_line () in
-    let cbuf = buf ^ line in
-    match try_parse cbuf with
-    | ParseError -> 
-        print_string "Invalid statement.\n";
-        frepl "" fdb;
-    | NoData ->
-        frepl cbuf fdb;
-    | Parsed Implication(i) ->
-        handle_query fdb (show_results i.implied) i.by;
-        frepl "" fdb;
-    | Parsed Query(q) ->
-        handle_query fdb (show_results {head="text"; body=[]}) q;
-        frepl "" fdb;
-    | Parsed Statement(s) ->
-        (match handle_statement fdb s with
-         | Some fdb -> frepl "" fdb;
-         | None -> fdb);
-and handle_statement fdb s = 
+let handle_statement fdb (s : Datalog.statement) = 
     match s.head with
     | "facts" ->
         begin
@@ -213,8 +181,9 @@ and handle_statement fdb s =
     | "finish" | "end" | "done" -> None;
     | _ ->
         print_string @@ "That is not a valid command.\n";
-        Some fdb
-and handle_query fdb handler q = 
+        Some fdb;;
+
+let handle_query fdb handler q = 
     let item_for_value = function 
         | Value v -> Query.Value v
         | Variable v -> Query.Variable v in
@@ -226,7 +195,70 @@ and handle_query fdb handler q =
     let query = List.map triple_for_statement q in
     Query.query_graph query fdb |> handler;;
 
+let eval_operation fdb operation = 
+    match operation with
+    | Implication (i) ->
+        handle_query fdb (show_results i.implied) i.by; 
+        Some fdb;
+    | Query (q) ->
+        handle_query fdb (show_results {head="text"; body=[]}) q;
+        Some fdb;
+    | Statement (s) ->
+            handle_statement fdb s;;
+
+let try_parse s =
+    try 
+    let lexbuf = Lexing.from_string s in
+        Parsed (Datalog.classify (DatalogParse.operation DatalogLex.token lexbuf));
+    with 
+    | Parse_error -> 
+        print_string "Got a parse error exception.\n";
+        ParseError;
+    | Datalog.Parse_eof -> NoData;;
+
+let rec frepl buf fdb =
+    if buf = "" then
+        print_string "> "
+    else
+        print_string "... ";
+    let line = read_line () in
+    let cbuf = buf ^ line in
+    match try_parse cbuf with
+    | ParseError -> 
+        print_string "Invalid statement.\n";
+        frepl "" fdb;
+    | NoData ->
+        frepl cbuf fdb;
+    | Parsed p ->
+        begin
+        match eval_operation fdb p with
+        | Some fdb -> frepl "" fdb
+        | None -> fdb
+        end;;
+
 let repl () = 
     frepl "" [];;
 
-repl();;
+let parse_source ch =
+    Lexing.from_channel ch |> 
+    DatalogParse.program DatalogLex.token |> 
+    Datalog.classify_program
+
+let rec eval_program program fdb = 
+    match program with 
+    | [] -> ()
+    | o :: os ->
+        begin
+        match eval_operation fdb o with
+        | Some fdb -> eval_program os fdb
+        | None -> ()
+        end;;
+
+open Array
+let main () =
+    match Sys.argv with
+    | [| _ |] -> repl () |> ignore
+    | [| _; "-f"; n |] -> eval_program (open_in n |> parse_source) []
+    | _ -> print_endline "Unrecognized flags.";;
+
+main ();;

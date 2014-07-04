@@ -1,14 +1,24 @@
 %{
     open Datalog
 %}
-%token LPAREN RPAREN PERIOD COMMA IMPL
+%token LPAREN RPAREN PERIOD COMMA IMPL EOF
 %token <string> WORD
 %token <string> VAR
-%start start
-%type <Datalog.parse_result> start
+%start operation 
+%start program
+%type <Datalog.operation> operation
+%type <Datalog.program> program
 %%
 
-start: 
+program: 
+    | EOF               { [] }
+    | operation program { $1 :: $2 }
+
+single_operation:
+    | operation { $1 }
+    | EOF { raise Datalog.Parse_eof }
+
+operation: 
     | statement IMPL fragment PERIOD 
     { Implication {Datalog.implied=$1; Datalog.by=$3} }
     | fragment PERIOD { Fragment ($1) }

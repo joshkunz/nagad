@@ -1,7 +1,6 @@
 {
     open DatalogParse
     exception Unknown_token
-    exception Eof
 }
 
 let LPAREN = '('
@@ -27,5 +26,5 @@ rule token = parse
     | IMPL        { IMPL }
     (* Whitespace matches discard the match and re-invoke the tokenizer *)
     | WS+         { token lexbuf }
-    | eof         { raise Eof }
+    | eof         { EOF }
     | _           { raise Unknown_token }

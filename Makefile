@@ -12,8 +12,9 @@ yacc_prefix = $(par_prefix)Parse
 libs = unix
 
 interfaces = $(yacc_prefix).mli $(wildcard *.mli)
-sources = $(yacc_prefix).ml $(lex_prefix).ml
-sources += Common.ml Datalog.ml Dot.ml Fact.ml Query.ml Naga.ml
+sources = Common.ml Datalog.ml Dot.ml 
+sources += $(yacc_prefix).ml $(lex_prefix).ml
+sources += Fact.ml Query.ml Naga.ml
 
 objects = $(patsubst %.ml,%.cmo,$(sources)) 
 
