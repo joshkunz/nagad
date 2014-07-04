@@ -74,7 +74,7 @@ let show_results (s : Datalog.statement) results =
                         an exception to the lookup *)
         with
         | Not_found -> 
-            (n ^ index ^ " [label=" ^ (quoted n) ^ "];\n", n :: e)
+            ((quoted (n ^ index)) ^ " [label=" ^ (quoted n) ^ "];\n", n :: e)
     in
     let rec nodes_for_fdb index e fdb = 
         match fdb with 
@@ -85,7 +85,7 @@ let show_results (s : Datalog.statement) results =
             result1 ^ result2 ^ (nodes_for_fdb index db2 fs)
     in
     let edge_for_fact index f =
-        sprintf "%s%s -- %s%s [label=%s];\n" 
+        sprintf "\"%s%s\" -- \"%s%s\" [label=%s];\n" 
             f.head index f.tail index (quoted f.rel)
     in
     let rec subgraph index facts =

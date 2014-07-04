@@ -1,6 +1,5 @@
 %{
     open Datalog;;
-    Parsing.set_trace true;;
 %}
 %token LPAREN RPAREN PERIOD COMMA IMPL EOF
 %token <string> WORD

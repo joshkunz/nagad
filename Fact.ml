@@ -23,7 +23,9 @@ let display_facts fs =
     string_for_facts fs |> print_string;;
 
 let edge_for_fact f =
-    f.head ^ " -- " ^ f.tail ^ " [label=" ^ (quoted f.rel) ^ "];\n";;
+    (quoted f.head) 
+    ^ " -- " ^ 
+    (quoted f.tail) ^ " [label=" ^ (quoted f.rel) ^ "];\n";;
 
 let fact_for_list l = 
     if (List.length l) <> 3 then None else
