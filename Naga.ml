@@ -11,7 +11,7 @@ open Fact
 open Query
 open Dot
 
-type parse_result = NoData | ParseError | Parsed of Datalog.classified;;
+type parse_result = Empty | NoData | ParseError | Parsed of Datalog.classified;;
 
 let print_help () = 
     print_string @@ 
@@ -208,20 +208,22 @@ let eval_operation fdb operation =
 
 let try_parse s =
     try 
-    let lexbuf = Lexing.from_string s in
-        Parsed (Datalog.classify (DatalogParse.operation DatalogLex.token lexbuf));
+    let parsed = Lexing.from_string s |> 
+                 DatalogParse.operation 
+                    (DatalogLex.token DatalogLex.throw_eof) |>
+                 Datalog.classify in Parsed parsed
     with 
     | Parse_error -> 
         print_string "Got a parse error exception.\n";
         ParseError;
-    | Datalog.Parse_eof -> NoData;;
+    | DatalogLex.Eof -> NoData;;
 
 let rec frepl buf fdb =
     if buf = "" then
         print_string "> "
     else
         print_string "... ";
-    let line = read_line () in
+    let line = (read_line ()) ^ "\n" in
     let cbuf = buf ^ line in
     match try_parse cbuf with
     | ParseError -> 
@@ -229,6 +231,9 @@ let rec frepl buf fdb =
         frepl "" fdb;
     | NoData ->
         frepl cbuf fdb;
+    | Empty ->
+        assert (buf = "");
+        frepl "" fdb;
     | Parsed p ->
         begin
         match eval_operation fdb p with
@@ -241,7 +246,7 @@ let repl () =
 
 let parse_source ch =
     Lexing.from_channel ch |> 
-    DatalogParse.program DatalogLex.token |> 
+    DatalogParse.program (DatalogLex.token DatalogLex.gen_eof) |>
     Datalog.classify_program
 
 let rec eval_program program fdb = 

@@ -1,5 +1,6 @@
 %{
-    open Datalog
+    open Datalog;;
+    Parsing.set_trace true;;
 %}
 %token LPAREN RPAREN PERIOD COMMA IMPL EOF
 %token <string> WORD
@@ -13,10 +14,6 @@
 program: 
     | EOF               { [] }
     | operation program { $1 :: $2 }
-
-single_operation:
-    | operation { $1 }
-    | EOF { raise Datalog.Parse_eof }
 
 operation: 
     | statement IMPL fragment PERIOD 

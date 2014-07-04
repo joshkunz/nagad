@@ -1,7 +1,5 @@
 open List
 
-exception Parse_eof
-
 type value = Variable of string | Value of string;;
 type statement = {head: string; body: value list};;
 type fragment = statement list;;
