@@ -14,14 +14,21 @@ let PERIOD = '.'
 let COMMA = ','
 let IMPL = ":-"
 let WS = [' ' '\t' '\n']
-let specials = [',' '.' '(' ')' '#' ':']
+let SDELIM = '"'
 let lower = ['a'-'z']
 let upper = ['A'-'Z']
-let extra = _ # specials # WS # lower # upper
+(* Specials: COMMA, PERIOD, LPAREN, RPAREN, COMMENT, SDELIM, IMPL[0] *)
+let specials = [',' '.' '(' ')' '#' '"' ':']
+let extra = _ # WS # lower # upper # specials 
 let WORD = (lower | extra) (lower | upper | extra)*
 let VAR = upper (lower | upper | extra)*
+let SCONSTW = _ # SDELIM # upper
+let SCONSTV = _ # SDELIM # lower
+let SCONST = _ # SDELIM
 
 rule token on_eof = parse 
+    | SDELIM (SCONSTW SCONST+ as str) SDELIM { WORD(str) }
+    | SDELIM (SCONSTV SCONST+ as str) SDELIM { VAR(str) }
     | WORD as str { WORD(str) }
     | VAR as str  { VAR(str) }
     | LPAREN      { LPAREN }

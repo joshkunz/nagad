@@ -94,7 +94,7 @@ let show_results (s : Datalog.statement) results =
         match s.body with 
         | [] -> textual 0 results |> print_string;
         | Value (name) :: [] -> 
-            let f = open_out @@ name ^ ".facts" in
+            let f = open_out name in
             textual 0 results |> output_string f;
             close_out f
         | _ -> raise (Failure "Case not Handled.")
@@ -104,7 +104,7 @@ let show_results (s : Datalog.statement) results =
         match s.body with
         | [] -> graph results |> print_string
         | Value(name) :: [] ->
-            let f = open_out @@ name ^ ".pdf" in
+            let f = open_out name in
             let (status, pdf) = graph results |> Dot.pdf_for_dot in
             output_string f pdf;
             close_out f;
@@ -184,7 +184,7 @@ let rec handle_statement fdb (s : Datalog.statement) =
         | [] -> 
             print_string @@ (Fact.fact_graph fdb) ^ "\n";
         | Value(name) :: [] ->
-            let f = open_out @@ name ^ ".pdf" in
+            let f = open_out @@ name in
             let (status, pdf) = Dot.pdf_for_dot @@ Fact.fact_graph fdb in
             output_string f pdf;
             close_out f;

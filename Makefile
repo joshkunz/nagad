@@ -41,7 +41,7 @@ $(yacc_prefix).ml $(yacc_prefix).mli: $(par_prefix).mly
 	ocamlc $(OCAMLFLAGS) -c $<
 
 $(depfile): $(sources) $(interfaces)
-	ocamldep $(OCAMLFLAGS) $? > $@
+	ocamldep $(OCAMLFLAGS) $^ > $@
 
 clean:
 	-rm -f $(bin) *.cmo *.cmi *.o *.cmx
