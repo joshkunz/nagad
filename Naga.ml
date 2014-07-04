@@ -31,25 +31,6 @@ help.               Print this message.
 help(full).         Print a much longer help message.
 ";;
 
-let print_full_help () = 
-    print_string @@
-"The Naga REPL language is a simple Line-oriented Datalog-like language.
-The Datalog language is as follows:
-
-    statement = NAME. | NAME(values).
-    values = variable [, values] | value [, values]
-    variable = *starts with uppercase*
-    value = *starts with lowercase*
-
-The system is manipulated through commands, as listing of which is given below.
-Commands are expressed as basic datatlog statements that provide a specific
-function. The facts in the system (inserted with the 'fact' command) can be
-queried by specifying a statement with at least one variable. Additionaly,
-AND constraints can be placed on the query by seperating statements with
-a comma.
-";
-    print_help ();;
-
 let fact_for_statement s = 
     let rec value_list = function
         | [] -> [];
@@ -170,15 +151,8 @@ let handle_statement fdb (s : Datalog.statement) =
          | Some f ->
              Some (f :: fdb));
     | "help" | "commands" ->
-        begin
-        match s.body with
-        | [] -> print_help (); 
-        | Value("full") :: [] -> print_full_help ();
-        | _ ->
-            print_endline "Help statement has too many, or an unknown parameter.";
-        end;
-        Some fdb;
-    | "finish" | "end" | "done" -> None;
+        print_help (); Some fdb;
+    | "finish" | "end" | "exit" | "done" -> None;
     | _ ->
         print_string @@ "That is not a valid command.\n";
         Some fdb;;
