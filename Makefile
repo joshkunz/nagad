@@ -13,7 +13,7 @@ libs = unix
 
 interfaces = $(yacc_prefix).mli $(wildcard *.mli)
 sources = $(yacc_prefix).ml $(lex_prefix).ml
-sources += Datalog.ml Dot.ml Fact.ml Query.ml Naga.ml
+sources += Common.ml Datalog.ml Dot.ml Fact.ml Query.ml Naga.ml
 
 objects = $(patsubst %.ml,%.cmo,$(sources)) 
 

@@ -1,6 +1,7 @@
 open Printf
 open Lexing
 open Parsing
+open Common
 open Datalog
 open DatalogParse
 open DatalogLex
@@ -10,8 +11,6 @@ open Query
 open Dot
 
 type parse_result = NoData | ParseError | Parsed of Datalog.classified;;
-
-let is_empty l = (List.length l) = 0;;
 
 let print_help () = 
     print_string @@ 
@@ -68,57 +67,78 @@ let fact_for_statement s =
     in
     Fact.fact_for_list @@ value_list s.body;;
 
-let rec query_textual index results = 
-    match results with 
-    | [] -> "End of results.\n"
-    | q :: qs ->
-          (sprintf "Result %i:\n" index)
-        ^ (Fact.string_for_facts q)
-        ^ (query_textual (index + 1) qs);;
-
-let rec unique_db postfix (facts : Fact.fact_db) =
-    match facts with
-    | [] -> []
-    | s :: ss -> 
-        {Fact.head = s.head ^ postfix;
-         Fact.rel = s.rel;
-         Fact.tail = s.tail ^ postfix} :: unique_db postfix ss;;
-
-let query_graph results =
-    let rec query_subgraphs index res =
-        match res with
+let show_results (s : Datalog.statement) results =
+    let rec textual index results = 
+        match results with 
+        | [] -> "End of results.\n"
+        | q :: qs ->
+              (sprintf "Result %i:\n" index)
+            ^ (Fact.string_for_facts q)
+            ^ (textual (index + 1) qs)
+    in
+    let node_for_node index e n =
+        try 
+            List.find ((=) n) e |> ignore; 
+            ("", e); (* Will only be returned if List.find doesn't throw
+                        an exception to the lookup *)
+        with
+        | Not_found -> 
+            (n ^ index ^ " [label=" ^ (quoted n) ^ "];\n", n :: e)
+    in
+    let rec nodes_for_fdb index e fdb = 
+        match fdb with 
+        | [] -> ""
+        | f :: fs ->
+            let (result1, db1) = node_for_node index e f.head in
+            let (result2, db2) = node_for_node index db1 f.tail in
+            result1 ^ result2 ^ (nodes_for_fdb index db2 fs)
+    in
+    let edge_for_fact index f =
+        sprintf "%s%s -- %s%s [label=%s];\n" 
+            f.head index f.tail index (quoted f.rel)
+    in
+    let rec subgraph index facts =
+        match facts with
+        | [] -> ""
+        | f :: fs ->
+            (edge_for_fact index f) ^ (subgraph index fs)
+    in
+    let rec _graph index results = 
+        match results with
         | [] -> ""
         | r :: rs ->
             let rnum = (string_of_int index) in
-            (Fact.generic_fact_graph 
-                (unique_db rnum r) ("subgraph " ^ "cluster" ^ rnum ^ " {\n") "}\n")
-            ^ (query_subgraphs (succ index) rs) in
-    "graph {\n" ^ (query_subgraphs 0 results) ^ "}\n";;
-
-let echo_result res = query_textual 0 res |> print_string;;
-
-let query_result (s : Datalog.statement) = 
+            (sprintf "subgraph cluster%s {\n" rnum) ^
+            (nodes_for_fdb rnum [] r) ^
+            (subgraph rnum r) ^
+            "}\n" ^ (_graph (succ index) rs)
+    in
+    let graph results = 
+        "graph {\n" ^ (_graph 0 results) ^ "}\n"
+    in
     match s.head with 
     | "text" ->
-        (match s.body with 
-         | [] -> echo_result 
-         | Value (name) :: [] -> 
-            fun res -> 
-                let f = open_out @@ name ^ ".facts" in
-                query_textual 0 res |> output_string f;
-                close_out f
-         | _ -> raise (Failure "Case not Handled."))
+        begin
+        match s.body with 
+        | [] -> textual 0 results |> print_string;
+        | Value (name) :: [] -> 
+            let f = open_out @@ name ^ ".facts" in
+            textual 0 results |> output_string f;
+            close_out f
+        | _ -> raise (Failure "Case not Handled.")
+        end
     | "graph" ->
-        (match s.body with
-         | [] -> (fun res -> query_graph res |> print_string)
-         | Value(name) :: [] ->
-            fun res ->
-                let f = open_out @@ name ^ ".pdf" in
-                let (status, pdf) = Dot.pdf_for_dot @@ query_graph res in
-                output_string f pdf;
-                close_out f;
-         | _ -> raise (Failure "Case not handled."))
-    | _ -> raise (Failure "Unknown implication.");;
+        begin
+        match s.body with
+        | [] -> graph results |> print_string
+        | Value(name) :: [] ->
+            let f = open_out @@ name ^ ".pdf" in
+            let (status, pdf) = graph results |> Dot.pdf_for_dot in
+            output_string f pdf;
+            close_out f;
+        | _ -> raise (Failure "Case not handled.")
+        end
+    | _ -> raise (Failure "Unknown query output.");;
 
 let rec frepl buf fdb =
     if buf = "" then
@@ -134,10 +154,10 @@ let rec frepl buf fdb =
     | NoData ->
         frepl cbuf fdb;
     | Parsed Implication(i) ->
-        handle_query fdb i.by (query_result i.implied);
+        handle_query fdb (show_results i.implied) i.by;
         frepl "" fdb;
     | Parsed Query(q) ->
-        handle_query fdb q echo_result;
+        handle_query fdb (show_results {head="text"; body=[]}) q;
         frepl "" fdb;
     | Parsed Statement(s) ->
         (match handle_statement fdb s with
@@ -194,16 +214,16 @@ and handle_statement fdb s =
     | _ ->
         print_string @@ "That is not a valid command.\n";
         Some fdb
-and handle_query fdb q handler = 
+and handle_query fdb handler q = 
     let item_for_value = function 
         | Value v -> Query.Value v
         | Variable v -> Query.Variable v in
     let triple_for_body = function
         | a :: b :: c :: [] -> (a, b, c)
         | _ -> raise (Failure "triple_for_body: To many items.") in
-    let mapper s =
-        triple_for_body @@ List.map item_for_value s.body in
-    let query = List.map mapper q in
+    let triple_for_statement s =
+        List.map item_for_value s.body |> triple_for_body in
+    let query = List.map triple_for_statement q in
     Query.query_graph query fdb |> handler;;
 
 let repl () = 

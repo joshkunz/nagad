@@ -1,8 +1,8 @@
 open List
+open Common
+
 type fact = {head: string; rel: string; tail: string};;
 type fact_db = fact list;;
-
-let quoted s = "\"" ^ s ^ "\"";;
 
 let string_for_fact f =
     "fact(" ^ 
@@ -37,7 +37,4 @@ let rec edges_for_facts fs =
     | f :: fs ->
         (edge_for_fact f) ^ (edges_for_facts fs);;
 
-let generic_fact_graph fs preamble epilogue =
-    preamble ^ (edges_for_facts fs) ^ epilogue;;
-
-let fact_graph fs = generic_fact_graph fs "graph {\n" "}";;
+let fact_graph fs = "graph {\n" ^ (edges_for_facts fs) ^ "}";;
