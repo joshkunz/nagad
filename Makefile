@@ -1,4 +1,4 @@
-.PHONY: clean
+.PHONY: clean default
 
 OCAMLLEX_FLAGS =
 OCAMLYACC_FLAGS = 
@@ -34,6 +34,9 @@ $(yacc_prefix).ml $(yacc_prefix).mli: $(par_prefix).mly
 %.cmo: %.ml
 	ocamlc $(OCAMLFLAGS) -c $<
 
+%.cmx: %.ml
+	ocamlopt $(OCAMLFLAGS) -c $<
+
 %.cmi: %.mli
 	ocamlc $(OCAMLFLAGS) -c $<
 
@@ -41,7 +44,7 @@ $(depfile): $(sources) $(interfaces)
 	ocamldep $(OCAMLFLAGS) $? > $@
 
 clean:
-	-rm -f $(bin) *.cmo *.cmi
+	-rm -f $(bin) *.cmo *.cmi *.o *.cmx
 	-rm -f $(lex_prefix).ml $(wildcard $(yacc_prefix).ml*)
 	-rm -f $(depfile)
 

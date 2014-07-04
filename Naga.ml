@@ -112,8 +112,58 @@ let show_results (s : Datalog.statement) results =
         end
     | _ -> raise (Failure "Unknown query output.");;
 
-let handle_statement fdb (s : Datalog.statement) = 
+let parse_source ch =
+    Lexing.from_channel ch |> 
+    DatalogParse.program (DatalogLex.token DatalogLex.gen_eof) |>
+    Datalog.classify_program
+
+let eval_operation query_handler statement_handler operation fdb = 
+    match operation with
+    | Implication (i) ->
+        query_handler fdb (show_results i.implied) i.by; 
+        Some fdb;
+    | Query (q) ->
+        query_handler fdb (show_results {head="text"; body=[]}) q;
+        Some fdb;
+    | Statement (s) ->
+        statement_handler fdb s;;
+
+let rec eval_program qh sh program fdb = 
+    match program with 
+    | [] -> fdb
+    | o :: os ->
+        begin
+        match eval_operation qh sh o fdb with
+        | Some fdb -> eval_program qh sh os fdb
+        | None -> fdb
+        end;;
+
+let handle_query fdb handler q = 
+    let item_for_value = function 
+        | Value v -> Query.Value v
+        | Variable v -> Query.Variable v in
+    let triple_for_body = function
+        | a :: b :: c :: [] -> (a, b, c)
+        | _ -> raise (Failure "triple_for_body: To many items.") in
+    let triple_for_statement s =
+        List.map item_for_value s.body |> triple_for_body in
+    let query = List.map triple_for_statement q in
+    Query.query_graph query fdb |> handler;;
+
+let rec handle_statement fdb (s : Datalog.statement) = 
     match s.head with
+    | "source" ->
+        begin match s.body with
+        | [] -> 
+            print_endline "Source statement doesn't have enough parameters.";
+            Some fdb;
+        | Value(name) :: [] ->
+            Some (eval_program handle_query handle_statement 
+                    (open_in name |> parse_source) fdb)
+        |_ -> 
+            print_endline "Source statement has too many parameters.";
+            Some fdb;
+        end;
     | "facts" ->
         begin
         match s.body with
@@ -157,29 +207,6 @@ let handle_statement fdb (s : Datalog.statement) =
         print_string @@ "That is not a valid command.\n";
         Some fdb;;
 
-let handle_query fdb handler q = 
-    let item_for_value = function 
-        | Value v -> Query.Value v
-        | Variable v -> Query.Variable v in
-    let triple_for_body = function
-        | a :: b :: c :: [] -> (a, b, c)
-        | _ -> raise (Failure "triple_for_body: To many items.") in
-    let triple_for_statement s =
-        List.map item_for_value s.body |> triple_for_body in
-    let query = List.map triple_for_statement q in
-    Query.query_graph query fdb |> handler;;
-
-let eval_operation fdb operation = 
-    match operation with
-    | Implication (i) ->
-        handle_query fdb (show_results i.implied) i.by; 
-        Some fdb;
-    | Query (q) ->
-        handle_query fdb (show_results {head="text"; body=[]}) q;
-        Some fdb;
-    | Statement (s) ->
-            handle_statement fdb s;;
-
 let try_parse s =
     try 
     let parsed = Lexing.from_string s |> 
@@ -193,6 +220,7 @@ let try_parse s =
     | DatalogLex.Eof -> NoData;;
 
 let rec frepl buf fdb =
+    let eval_repl = eval_operation handle_query handle_statement in
     if buf = "" then
         print_string "> "
     else
@@ -210,7 +238,7 @@ let rec frepl buf fdb =
         frepl "" fdb;
     | Parsed p ->
         begin
-        match eval_operation fdb p with
+        match eval_repl p fdb with
         | Some fdb -> frepl "" fdb
         | None -> fdb
         end;;
@@ -218,26 +246,12 @@ let rec frepl buf fdb =
 let repl () = 
     frepl "" [];;
 
-let parse_source ch =
-    Lexing.from_channel ch |> 
-    DatalogParse.program (DatalogLex.token DatalogLex.gen_eof) |>
-    Datalog.classify_program
-
-let rec eval_program program fdb = 
-    match program with 
-    | [] -> ()
-    | o :: os ->
-        begin
-        match eval_operation fdb o with
-        | Some fdb -> eval_program os fdb
-        | None -> ()
-        end;;
-
 open Array
 let main () =
+    let eval_prog = eval_program handle_query handle_statement in
     match Sys.argv with
     | [| _ |] -> repl () |> ignore
-    | [| _; "-f"; n |] -> eval_program (open_in n |> parse_source) []
+    | [| _; "-f"; n |] -> eval_prog (open_in n |> parse_source) [] |> ignore
     | _ -> print_endline "Unrecognized flags.";;
 
 main ();;

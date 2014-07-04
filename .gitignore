@@ -4,6 +4,7 @@
 *.pdf
 *.facts
 naga
+*.naga
 
 DatalogLex.ml
 DatalogParse.ml
