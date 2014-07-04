@@ -1,197 +1,17 @@
 open Printf
+open Lexing
+open Parsing
 open Datalog
 open DatalogParse
 open DatalogLex
-open Lexing
-open Parsing
 open List
-open String
-open Unix
+open Fact
+open Query
+open Dot
 
 type parse_result = NoData | ParseError | Parsed of Datalog.classified;;
 
-let quoted s = "\"" ^ s ^ "\"";;
 let is_empty l = (List.length l) = 0;;
-
-module Fact =
-    struct
-    type fact = {head: string; rel: string; tail: string};;
-    type fact_db = fact list;;
-
-    let string_for_fact f =
-        "fact(" ^ 
-        f.head ^ ", " ^
-        f.rel ^ ", " ^
-        f.tail ^ ").\n";;
-
-    let rec string_for_facts fs = 
-        match fs with
-        | [] -> ""
-        | car :: cdr ->
-            string_for_fact car ^ string_for_facts cdr;;
-
-    let display_fact f = 
-        string_for_fact f |> print_string;;
-
-    let display_facts fs =
-        string_for_facts fs |> print_string;;
-
-    let edge_for_fact f =
-        f.head ^ " -- " ^ f.tail ^ " [label=" ^ (quoted f.rel) ^ "];\n";;
-
-    let fact_for_list l = 
-        if (List.length l) <> 3 then None else
-            Some { head = List.nth l 0; 
-                   rel  = List.nth l 1; 
-                   tail = List.nth l 2};;
-
-    let rec edges_for_facts fs =
-        match fs with 
-        | [] -> "";
-        | f :: fs ->
-            (edge_for_fact f) ^ (edges_for_facts fs);;
-
-    let generic_fact_graph fs preamble epilogue =
-        preamble ^ (edges_for_facts fs) ^ epilogue;;
-
-    let fact_graph fs = generic_fact_graph fs "graph {\n" "}";;
-
-    end;;
-
-
-module Query : sig
-    open Fact
-    type query_item = Variable of string | Value of string
-    type qtri = query_item * query_item * query_item
-    type query = qtri list
-
-    type context_entry = string * string
-    type context = context_entry list
-
-    val in_context : string -> context -> bool
-    val edge_pairs : qtri -> Fact.fact -> (query_item * string) list
-    val field_match : (query_item * string) -> context -> (bool * context)
-    val edge_pairs_matched : (query_item * string) list -> context -> (bool * context)
-    val matches_of : qtri -> Fact.fact_db -> context -> (Fact.fact * context) list
-    val query_graph : query -> Fact.fact_db -> Fact.fact_db list
-    end = 
-    struct
-    open Fact
-    type query_item = Variable of string | Value of string
-    type qtri = query_item * query_item * query_item
-    type query = qtri list
-
-    type context_entry = string * string
-    type context = context_entry list
-
-    let rec context_as_string = function 
-        | [] -> ""
-        | (c1, c2) :: cs -> 
-            ("(" ^ c1 ^ ", " ^ c2 ^ ")\n") ^ (context_as_string cs);;
-
-    let qitem_as_string = function
-        | Variable a -> a ^ "?"
-        | Value a -> a;;
-
-    let rec qtri_as_string = function
-        | (a, b, c) ->
-            "(" ^ (qitem_as_string a) ^ ", "
-                ^ (qitem_as_string b) ^ ", "
-                ^ (qitem_as_string c) ^ ")";;
-
-    let in_context v context =
-        try 
-            List.assoc v context |> ignore; true;
-        with
-        | Not_found -> false;;
-
-    let rec pop_edge graph edge =
-        match graph with 
-        | [] -> [] 
-        | e :: es when e = edge -> es
-        | e :: es -> e :: (pop_edge es edge);;
-
-    let edge_pairs (q1, q2, q3) (e : Fact.fact) = 
-        [(q1, e.head); (q2, e.rel); (q3, e.tail)];;
-
-    let field_match (qfield, efield) context =
-        match qfield with
-        | Variable x ->
-            if in_context x context then 
-                (efield = (List.assoc x context), context)
-            else
-                (* If there is not binding for the variable in the context,
-                 * then automatically match and add the binding *)
-                (true, (x, efield) :: context)
-        | Value x -> (efield = x, context);;
-
-    let edge_pairs_matched pairs context =
-        let reducer (v, c) x = 
-            let (nv, nc) = field_match x c in ((v && nv), nc);
-        in
-        List.fold_left reducer (true, context) pairs;;
-
-    let rec matches_of qt kgraph context =
-        match kgraph with
-        | [] -> []
-        | fact :: facts ->
-            let (did_match, _context) = 
-                edge_pairs_matched (edge_pairs qt fact) context
-            in
-            if did_match then 
-                (fact, _context) :: (matches_of qt facts context)
-            else
-                (matches_of qt facts context);;
-
-    let rec query_tree query kgraph context path = 
-        match query with
-        | [] -> [path]
-        | q :: qs -> 
-            matches_of q kgraph context |> mapping qs kgraph path
-    and mapping qs kgraph path edges =
-        match edges with
-        | [] -> []
-        | (e, cntxt) :: es ->
-            let fpath = 
-                query_tree qs (pop_edge kgraph e) cntxt (e :: path)
-            in
-            fpath @ (mapping qs kgraph path es)
-
-    let query_graph query kgraph =
-        query_tree query kgraph [] [];;
-    end;;
-
-
-let string_for_char_list cs =
-    let s = String.create (List.length cs) in
-    let rec fills s cl i =
-        match cl with
-        | [] -> s;
-        | c :: cs ->
-            s.[i - 1] <- c;
-            (* Write the characters bacwards because they're reversed *)
-            fills s cs (i - 1); in
-    fills s cs (List.length cs);;
-
-let input_string ch =
-    let rec input_all_chars ch buf =
-        try
-            let c = input_char ch in
-            input_all_chars ch (c :: buf);
-        with End_of_file -> buf in
-    string_for_char_list @@ input_all_chars ch [];;
-
-exception Terminated_abnormally
-
-let pdf_for_dot graph =
-    let (proc_out, proc_in) = Unix.open_process "dot -Tpdf" in
-    output_string proc_in graph;
-    flush proc_in;
-    close_out proc_in;
-    let pdf = input_string proc_out in
-    match Unix.close_process (proc_out, proc_in) with
-    | WEXITED i -> (i, pdf)
-    | _ -> raise Terminated_abnormally;;
 
 let print_help () = 
     print_string @@ 
@@ -262,21 +82,22 @@ let rec unique_db postfix (facts : Fact.fact_db) =
     | s :: ss -> 
         {Fact.head = s.head ^ postfix;
          Fact.rel = s.rel;
-         Fact.tail = s.head ^ postfix} :: unique_db postfix ss;;
+         Fact.tail = s.tail ^ postfix} :: unique_db postfix ss;;
 
 let query_graph results =
     let rec query_subgraphs index res =
         match res with
         | [] -> ""
         | r :: rs ->
+            let rnum = (string_of_int index) in
             (Fact.generic_fact_graph 
-                (unique_db (string_of_int index) r)
-                "subgraph {\n" "}\n") ^ (query_subgraphs (succ index) rs) in
+                (unique_db rnum r) ("subgraph " ^ "cluster" ^ rnum ^ " {\n") "}\n")
+            ^ (query_subgraphs (succ index) rs) in
     "graph {\n" ^ (query_subgraphs 0 results) ^ "}\n";;
 
 let echo_result res = query_textual 0 res |> print_string;;
 
-let query_result s = 
+let query_result (s : Datalog.statement) = 
     match s.head with 
     | "text" ->
         (match s.body with 
@@ -293,7 +114,7 @@ let query_result s =
          | Value(name) :: [] ->
             fun res ->
                 let f = open_out @@ name ^ ".pdf" in
-                let (status, pdf) = pdf_for_dot @@ query_graph res in
+                let (status, pdf) = Dot.pdf_for_dot @@ query_graph res in
                 output_string f pdf;
                 close_out f;
          | _ -> raise (Failure "Case not handled."))
@@ -345,7 +166,7 @@ and handle_statement fdb s =
             print_string @@ (Fact.fact_graph fdb) ^ "\n";
         | Value(name) :: [] ->
             let f = open_out @@ name ^ ".pdf" in
-            let (status, pdf) = pdf_for_dot @@ Fact.fact_graph fdb in
+            let (status, pdf) = Dot.pdf_for_dot @@ Fact.fact_graph fdb in
             output_string f pdf;
             close_out f;
         | _ ->

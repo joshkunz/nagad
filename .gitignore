@@ -8,3 +8,4 @@ naga
 DatalogLex.ml
 DatalogParse.ml
 DatalogParse.mli
+Makefile.d
