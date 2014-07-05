@@ -23,7 +23,7 @@ let extra = _ # WS # lower # upper # specials
 let WORD = (lower | extra) (lower | upper | extra)*
 let VAR = upper (lower | upper | extra)*
 let SCONSTW = _ # SDELIM # upper
-let SCONSTV = _ # SDELIM # lower
+let SCONSTV = upper 
 let SCONST = _ # SDELIM
 
 rule token on_eof = parse 
