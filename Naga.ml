@@ -19,16 +19,19 @@ let print_help () =
 fact(a, b, c).      Add a fact to the database.
 facts.              Display facts in the fact base.
 facts(name).        Write a list of the facts in the fact base to a file
-                    named 'name.facts', any files with the same name are
+                    named 'name', any files with the same name are
                     overwritten.
-graph.              Print out the DOT representation of this graph.
-graph(name).        Write out a PDF of the knowledge graph to a file named
-                    'name.pdf'. Overwrites any file with that name in this
-                    directory.
 finish. end. done.  
     exit.           Exits the program
-help.               Print this message.
-help(full).         Print a much longer help message.
+graph.              Print out the DOT representation of this graph.
+graph(name).        Write out a PDF of the knowledge graph to a file named
+                    'name'. Overwrites any file with that name in this
+                    directory.
+source(name).       Read and run all commands in the file named 'name' with
+                    the current fact database. This can be used to load
+                    fact databases saved previously with the 'facts' command,
+                    or to automate queries in an interactive session.
+help. commands.     Print this message.
 ";;
 
 let fact_for_statement s = 
