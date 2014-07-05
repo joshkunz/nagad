@@ -1,6 +1,3 @@
-Naive implementation of the naga query language and graph representation based
-heavily on the algorithms given in the naga paper.
-
 # Building and Running:
 
 First things first you're going to need is an OCaml compiler/interpreter. You
@@ -17,7 +14,13 @@ To make naga, simply run the 'make' command, and then invoke the generated
 
 When invoked, the NAGA binary will start a command oriented REPL, you can
 see the list of commands from within the REPL by running `help.` from
-within the REPL. The Full Documentation is given in the following section.
+within the REPL. Complete documentation of the REPL language is given in the
+following section.
+
+You can provide Naga with an input file that will be executed with the use
+of the interactive REPL with the `-f` switch:
+
+    $ ./naga -f input.naga
 
 # Documentation
 
@@ -58,6 +61,10 @@ Also, previously-saved fact databases can be added to the current fact-database
 by using the `source` command:
 
     > source("example.facts").
+
+To help aid in the writing of longer programs that can be supplied to the
+Naga program with the `-f` switch, comments can be written by using the
+`#` character. Comments proceed from the `#` character to the end of the line.
 
 ## Queries
 
