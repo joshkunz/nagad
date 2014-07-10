@@ -1,4 +1,5 @@
 HTTPLex.ml
 HTTPParse.ml
 HTTPParse.mli
+http.cma
 test

@@ -87,15 +87,16 @@ module HTTPBase (R : HTTPBase_intf) : (HTTPBase with type t = R.t) = struct
     let set_header r n v = 
         Header.set_header (R.headers r) n v |> R._sheaders r
 
-    let from_string s = 
-        let reader pos len = String.sub s (pos + 1) len in
-        (Lexing.from_string s |> R._read) reader ;;
+    let _string_reader s pos len = 
+        if len = 0 then "" else String.sub s (pos + 1) len;;
 
-    let write oc r = R.as_string r |> output_string oc;;
-    let read ic = 
+    let _channel_reader ic pos len =
         let body = "" in
-        let reader pos len = really_input ic body 0 len; body in
-        (Lexing.from_channel ic |> R._read) reader;;
+        if len = 0 then "" else (really_input ic body 0 len; body);;
+
+    let from_string s = (Lexing.from_string s |> R._read) (_string_reader s);;
+    let read ic = (Lexing.from_channel ic |> R._read) (_channel_reader ic);;
+    let write oc r = R.as_string r |> output_string oc;;
 end;;
 
 module RequestBase = struct
@@ -120,7 +121,7 @@ module RequestBase = struct
             let body = reader buf.lex_curr_p.pos_cnum length in
             { meth = m; uri = p; version = v; headers = hdrs; body = body}
         with
-        | Parse_error -> raise (Bad_request "Couldn't parse request.")
+        | Parse_error | Failure _ -> raise (Bad_request "Couldn't parse request.")
         | Header_not_found -> raise (Bad_request "No Content-Length header.")
         | End_of_file -> raise (Bad_request "Connection terminated early.");;
 
@@ -153,7 +154,7 @@ module ResponseBase = struct
             let body = reader buf.lex_curr_p.pos_cnum length in
             { version = v; code = c; reason = r; headers = hdrs; body = body}
         with
-        | Parse_error -> raise (Bad_response "Couldn't parse response.")
+        | Parse_error | Failure _ -> raise (Bad_response "Couldn't parse response.")
         | Header_not_found -> raise (Bad_response "No Content-Length header.")
         | End_of_file -> raise (Bad_response "Connection terminated early.");;
 
