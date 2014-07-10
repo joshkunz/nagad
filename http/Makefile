@@ -6,12 +6,9 @@ OCAMLFLAGS =
 
 lib = http.cma
 
-OCAMLLEX_POST = Lex
-OCAMLYACC_POST = Yacc
-
 par_prefix = HTTP
-lexp = $(par_prefix)$(OCAMLLEX_POST)
-yaccp = $(par_prefix)$(OCAMLYACC_POST)
+lexp = $(par_prefix)Lex
+yaccp = $(par_prefix)Parse
 libs = unix
 
 interfaces = $(yaccp).mli $(wildcard *.mli)
@@ -36,7 +33,7 @@ $(lexp).ml: $(yaccp).mli
 #	ocamlyacc $(OCAMLYACC_FLAGS) -b$(yacc_prefix) $<
 
 clean:
-	-rm -f $(bin) *.cmo *.cmi *.o *.cmx
+	-rm -f $(lib) *.cmo *.cmi *.o *.cmx
 	-rm -f $(lexp).ml $(wildcard $(yaccp).ml*)
 	-rm -f $(depfile)
 

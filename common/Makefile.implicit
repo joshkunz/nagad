@@ -4,9 +4,6 @@ OCAMLDEP = ocamldep
 OCAMLLEX = ocamllex
 OCAMLYACC = ocamlyacc
 
-OCAMLLEX_POST = Lex
-OCAMLYACC_POST = Yacc
-
 %.cmo: %.ml
 	$(OCAMLC) $(OCAMLFLAGS) -c $<
 
@@ -19,11 +16,11 @@ OCAMLYACC_POST = Yacc
 %.cma:
 	$(OCAMLC) -a $(OCAMLFLAGS) -o $@ $^
 
-%$(OCAMLLEX_POST).ml: %.mll
-	$(OCAMLLEX) -o "$*$(OCAMLLEX_POST).ml" $(OCAMLEX_FLAGS) $<
+%Lex.ml: %.mll
+	$(OCAMLLEX) -o "$*Lex.ml" $(OCAMLEX_FLAGS) $<
 
-%$(OCAMLYACC_POST).mli %$(OCAMLYACC_POST).ml: %.mly
-	$(OCAMLYACC) -b "$*$(OCAMLYACC_POST)" $(OCAMLYACC_FLAGS) $<
+%Parse.mli %Parse.ml: %.mly
+	$(OCAMLYACC) -b "$*Parse" $(OCAMLYACC_FLAGS) $<
 
 Makefile.d: 
 	$(OCAMLDEP) $^ > $@
