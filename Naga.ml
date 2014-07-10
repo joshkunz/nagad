@@ -171,10 +171,10 @@ let rec handle_statement fdb (s : Datalog.statement) =
         begin
         match s.body with
         | [] when is_empty fdb ->
-            print_string @@ "(empty)\n";
+            print_string "(empty)\n";
         | [] -> Fact.display_facts fdb;
         | Value(name) :: [] -> 
-            let f = open_out @@ name ^ ".facts" in
+            let f = name ^ ".facts" |> open_out in
             Fact.string_for_facts fdb |> output_string f;
             close_out f;
         | _ ->
@@ -188,7 +188,7 @@ let rec handle_statement fdb (s : Datalog.statement) =
             print_string @@ (Fact.fact_graph fdb) ^ "\n";
         | Value(name) :: [] ->
             let f = open_out @@ name in
-            let (status, pdf) = Dot.pdf_for_dot @@ Fact.fact_graph fdb in
+            let (status, pdf) = Fact.fact_graph fdb |> Dot.pdf_for_dot in
             output_string f pdf;
             close_out f;
         | _ ->
