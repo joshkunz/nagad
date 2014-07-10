@@ -1,7 +1,7 @@
 %{
     open HTTPTypes;;
     open Parsing;;
-    Parsing.set_trace true;;
+    (* Parsing.set_trace true;; *)
 %}
 
 %token CRLF COLON LWS

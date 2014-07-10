@@ -47,50 +47,68 @@ end;;
 exception Bad_request of string;;
 exception Bad_response of string;;
 
-module type HTTP_IO = sig
+(* Types shared with the HTTPBase functor interface *)
+module type HTTP_IOShared = sig
+    type t
+    val as_string : t -> string
+
+    val headers : t -> headers
+    val version : t -> string
+    val body : t -> string
+end;;
+
+module type HTTPBase_intf = sig
+    type t
+    val _sheaders : t -> headers -> t;;
+    val _read : Lexing.lexbuf -> (int -> int -> string) -> t 
+
+    include HTTP_IOShared with type t := t
+end;;
+
+module type HTTPBase = sig
     type t
     val read : in_channel -> t
     val write : out_channel -> t -> unit
     val from_string : string -> t 
-    val as_string : t -> string
     val set_header : t -> string -> string -> t
     val get_header : t -> string -> string 
 end;;
 
-module type HTTP_IO_Base = sig
+module type HTTP_IO = sig
     type t
-    val _fheaders : t -> headers;;
-    val _sheaders : t -> headers -> t;;
-    val _read : Lexing.lexbuf -> (int -> int -> string) -> t 
-    val as_string : t -> string
+    include HTTP_IOShared with type t := t
+    include HTTPBase with type t := t
 end;;
 
-module HTTPBase (R : HTTP_IO_Base) : (HTTP_IO with type t = R.t) = struct
+module HTTPBase (R : HTTPBase_intf) : (HTTPBase with type t = R.t) = struct
     type t = R.t
-    let get_header r n = Header.get_header (R._fheaders r) n;;
+
+    let get_header r n = Header.get_header (R.headers r) n;;
     let set_header r n v = 
-        Header.set_header (R._fheaders r) n v |> R._sheaders r
+        Header.set_header (R.headers r) n v |> R._sheaders r
 
     let from_string s = 
-        let reader pos len = String.sub s pos len in
+        let reader pos len = String.sub s (pos + 1) len in
         (Lexing.from_string s |> R._read) reader ;;
-    let as_string = R.as_string
 
-    let write oc r = as_string r |> output_string oc;;
+    let write oc r = R.as_string r |> output_string oc;;
     let read ic = 
         let body = "" in
         let reader pos len = really_input ic body 0 len; body in
         (Lexing.from_channel ic |> R._read) reader;;
 end;;
 
-module Request : HTTP_IO = HTTPBase(struct
+module RequestBase = struct
     type t = { meth: string;
                uri: uri; 
                version: string; 
                headers: headers;
                body: string};;
 
-    let _fheaders r = r.headers;;
+    let version r = r.version
+    let headers r = r.headers
+    let body r = r.body
+
     let _sheaders r h =  
         { meth = r.meth; uri = r.uri; version = r.version;
           headers = h; body = r.body };;
@@ -111,19 +129,23 @@ module Request : HTTP_IO = HTTPBase(struct
         r.meth r.uri r.version
         (Header.string_of_headers r.headers)
         r.body;;
-end);;
+end;;
 
-module Response : HTTP_IO = HTTPBase(struct
+module ResponseBase = struct
     type t = { version: string;
                code: int;
                reason: string;
                headers: headers;
                body: string};;
 
-    let _fheaders r = r.headers;;
+    let version r = r.version
+    let headers r = r.headers
+    let body r = r.body
+
     let _sheaders r h =
         { version = r.version; code = r.code; reason = r.reason;
           headers = h; body = r.body };;
+
     let _read buf reader =
         try 
             let ((v, c, r), hdrs) = HTTPParse.response HTTPLex.http_token buf in
@@ -140,4 +162,30 @@ module Response : HTTP_IO = HTTPBase(struct
         r.version r.code r.reason
         (Header.string_of_headers r.headers)
         r.body;;
-end);;
+end;;
+
+module Request : sig
+    include HTTP_IO
+    include HTTPBase with type t := t
+    val meth : t -> string
+    val uri : t -> uri 
+end = struct
+    include RequestBase
+    include (HTTPBase(RequestBase) : 
+        module type of HTTPBase(RequestBase) with type t := t)
+    let meth r = r.meth
+    let uri r = r.uri
+end;;
+
+module Response : sig
+    include HTTP_IO
+    include HTTPBase with type t := t
+    val code : t -> int
+    val reason : t -> string
+end = struct
+    include ResponseBase 
+    include (HTTPBase(ResponseBase) : 
+        module type of HTTPBase(ResponseBase) with type t := t)
+    let code r = r.code
+    let reason r = r.reason
+end;;
