@@ -28,16 +28,8 @@ jsonm.ml jsonm.mli: $(jsonm_src)
 $(depfile): $(source)
 	ocamldep $(OCAMLFLAGS) $^ > $@
 
--include $(depfile) 
-
-%.cmo: %.ml
-	ocamlc $(OCAMLFLAGS) -c $<
-
-%.cmx: %.ml
-	ocamlopt $(OCAMLFLAGS) -c $<
-
-%.cmi: %.mli
-	ocamlc $(OCAMLFLAGS) -c $<
-
 clean:
 	-rm -f $(objects) $(interfaces) $(lib) $(depfile) $(source)
+
+include ../common/Makefile.implicit
+-include $(depfile) 

@@ -1,17 +1,17 @@
 %{
-    open HTTP;;
+    open HTTPTypes;;
     open Parsing;;
     Parsing.set_trace true;;
 %}
 
 %token CRLF COLON LWS
 %token<string> TOKEN FIELD
-%token<HTTP.Parse.request_line> REQUEST
-%token<HTTP.Parse.response_line> RESPONSE 
-%token<HTTP.header> HEADER
+%token<HTTPTypes.Parse.request_line> REQUEST
+%token<HTTPTypes.Parse.response_line> RESPONSE 
+%token<HTTPTypes.header> HEADER
 %start request response
-%type<HTTP.Parse.request> request
-%type<HTTP.Parse.response> response
+%type<HTTPTypes.Parse.request> request
+%type<HTTPTypes.Parse.response> response
 %%
 response:
     | RESPONSE CRLF message_headers CRLF { ($1, $3) }

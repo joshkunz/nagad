@@ -1,5 +1,5 @@
 {
-    open HTTP
+    open HTTPTypes
     open HTTPParse
     open Printf
 }
@@ -52,7 +52,7 @@ let header = (token as n) ':' LWS? (field as v) LWS?
 rule http_token = parse 
     | status_line          { RESPONSE(v, (int_of_string c), r) }
     | request_line         { REQUEST(m, u, v) }
-    | header               { HEADER({HTTP.name=n; 
-                                     HTTP.value=v}) }
+    | header               { HEADER({HTTPTypes.name=n; 
+                                     HTTPTypes.value=v}) }
     | CRLF                 { CRLF }
     | ':'                  { COLON }

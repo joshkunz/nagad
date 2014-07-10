@@ -1,0 +1,8 @@
+%.cmo: %.ml
+	ocamlc $(OCAMLFLAGS) -c $<
+
+%.cmx: %.ml
+	ocamlopt $(OCAMLFLAGS) -c $<
+
+%.cmi: %.mli
+	ocamlc $(OCAMLFLAGS) -c $<
