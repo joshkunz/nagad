@@ -4,23 +4,25 @@ OCAMLLEX_FLAGS =
 OCAMLYACC_FLAGS = 
 OCAMLFLAGS = 
 
-bin = naga
+bin = test 
 
-par_prefix = Datalog
+par_prefix = HTTP
 lex_prefix = $(par_prefix)Lex
 yacc_prefix = $(par_prefix)Parse
 libs = unix
 
 interfaces = $(yacc_prefix).mli $(wildcard *.mli)
-sources = Common.ml Datalog.ml Dot.ml 
-sources += $(yacc_prefix).ml $(lex_prefix).ml
-sources += Fact.ml Query.ml Naga.ml
+sources = $(yacc_prefix).ml $(lex_prefix).ml
+sources += Test.ml
 
 objects = $(patsubst %.ml,%.cmo,$(sources)) 
 
 depfile = Makefile.d
 
 default: $(bin)
+
+$(depfile): $(yacc_prefix).mli $(yacc_prefix).ml $(lex_prefix).ml
+$(lex_prefix).ml: $(yacc_prefix).mli
 
 $(bin): $(objects)
 	ocamlc $(OCAMLFLAGS) -o $@ $(addsuffix .cma,$(libs)) $^
@@ -48,5 +50,5 @@ clean:
 	-rm -f $(lex_prefix).ml $(wildcard $(yacc_prefix).ml*)
 	-rm -f $(depfile)
 
-include $(depfile) 
+-include $(depfile) 
 	
