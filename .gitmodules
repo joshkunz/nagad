@@ -1,0 +1,6 @@
+[submodule "libs/uutf"]
+	path = libs/uutf
+	url = http://erratique.ch/repos/uutf.git
+[submodule "libs/jsonm"]
+	path = libs/jsonm
+	url = http://erratique.ch/repos/jsonm.git
