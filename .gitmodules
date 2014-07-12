@@ -1,5 +1,5 @@
-[submodule "libs/jsonm"]
-	path = libs/jsonm
+[submodule "libs/jsonm/jsonm-src"]
+	path = libs/jsonm/jsonm-src
 	url = http://erratique.ch/repos/jsonm.git
 [submodule "libs/uutf/uutf-src"]
 	path = libs/uutf/uutf-src
