@@ -2,51 +2,28 @@
 
 OCAMLLEX_FLAGS =
 OCAMLYACC_FLAGS = 
-OCAMLFLAGS = 
+OCAMLFLAGS = -I ../include/
 
-bin = naga
+bin = nagad
 
-par_prefix = Datalog
-lex_prefix = $(par_prefix)Lex
-yacc_prefix = $(par_prefix)Parse
-libs = unix
-
-interfaces = $(yacc_prefix).mli $(wildcard *.mli)
-sources = Common.ml Datalog.ml Dot.ml 
-sources += $(yacc_prefix).ml $(lex_prefix).ml
-sources += Fact.ml Query.ml Naga.ml
-
-objects = $(patsubst %.ml,%.cmo,$(sources)) 
-
+sources = KG.ml Query.ml Nagad.ml 
+interfaces = $(patsubst %.mli,%.cmi,$(filter %.mli,$(sources)))
+interfaces += $(patsubst %.ml,%.cmi,$(filter %.ml,$(sources)))
+objects = $(patsubst %.ml,%.cmo,$(filter %.ml,$(sources)))
+libs = json http 
 depfile = Makefile.d
+
+abs_libs = $(addprefix ../lib/,$(addsuffix .cma,$(libs)))
 
 default: $(bin)
 
-$(bin): $(objects)
-	ocamlc $(OCAMLFLAGS) -o $@ $(addsuffix .cma,$(libs)) $^
+$(depfile): $(sources)
 
-$(lex_prefix).ml: $(par_prefix).mll
-	ocamllex $(OCAMLLEX_FLAGS) -o $@ $<
-
-$(yacc_prefix).ml $(yacc_prefix).mli: $(par_prefix).mly
-	ocamlyacc $(OCAMLYACC_FLAGS) -b$(yacc_prefix) $<
-
-%.cmo: %.ml
-	ocamlc $(OCAMLFLAGS) -c $<
-
-%.cmx: %.ml
-	ocamlopt $(OCAMLFLAGS) -c $<
-
-%.cmi: %.mli
-	ocamlc $(OCAMLFLAGS) -c $<
-
-$(depfile): $(sources) $(interfaces)
-	ocamldep $(OCAMLFLAGS) $^ > $@
+$(bin): $(abs_libs) $(objects)
+	ocamlc $(OCAMLFLAGS) -o $@ $^
 
 clean:
-	-rm -f $(bin) *.cmo *.cmi *.o *.cmx
-	-rm -f $(lex_prefix).ml $(wildcard $(yacc_prefix).ml*)
-	-rm -f $(depfile)
+	-rm -f $(bin) $(objects) $(interfaces) $(depfile)
 
-include $(depfile) 
-	
+include ../common/Makefile.implicit
+-include $(depfile) 
