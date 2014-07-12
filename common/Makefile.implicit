@@ -5,7 +5,7 @@ OCAMLLEX = ocamllex
 OCAMLYACC = ocamlyacc
 
 %.cmo: %.ml
-	$(OCAMLC) $(OCAMLFLAGS) -c $<
+	$(OCAMLC) $(OCAMLFLAGS) -c $(filter %.cma,$^) $<
 
 %.cmx: %.ml
 	$(OCAMLOPT) $(OCAMLFLAGS) -c $<
