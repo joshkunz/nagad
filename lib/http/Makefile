@@ -21,6 +21,9 @@ depfile = Makefile.d
 
 $(lib): $(objects)
 
+includes: $(interfaces)
+	cp $(interfaces) $(include)
+
 $(depfile): $(yaccp).mli $(yaccp).ml $(lexp).ml
 $(depfile): $(sources) $(interfaces)
 
@@ -37,5 +40,5 @@ clean:
 	-rm -f $(lexp).ml $(wildcard $(yaccp).ml*)
 	-rm -f $(depfile)
 
-include ../common/Makefile.implicit
+include ../../common/Makefile.implicit
 -include $(depfile) 

@@ -1,12 +1,10 @@
 *.swp
 *.cmo
 *.cmi
+*.cma
 *.pdf
 *.facts
-naga
 *.naga
 
-DatalogLex.ml
-DatalogParse.ml
-DatalogParse.mli
 Makefile.d
+include/*
