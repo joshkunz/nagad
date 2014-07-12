@@ -4,3 +4,9 @@
 [submodule "libs/uutf/uutf-src"]
 	path = libs/uutf/uutf-src
 	url = http://erratique.ch/repos/uutf.git
+[submodule "lib/jsonm/jsonm-src"]
+	path = lib/jsonm/jsonm-src
+	url = http://erratique.ch/repos/jsonm.git
+[submodule "lib/uutf/uutf-src"]
+	path = lib/uutf/uutf-src
+	url = http://erratique.ch/repos/uutf.git
