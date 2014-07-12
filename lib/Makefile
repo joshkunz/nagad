@@ -1,13 +1,16 @@
 .PHONY: clean libs 
 
 libs = jsonm.cma uutf.cma http.cma
-include_dir = ../../include
+include_dir = ../include
 
 libs: $(libs)
 
-%.cma: %/
+$(include_dir): 
+	mkdir $@ 
+
+%.cma: %/ | $(include_dir)
 	$(MAKE) -C $< $@
-	$(MAKE) -C $< include="$(include_dir)/" includes
+	$(MAKE) -C $< include="../$(include_dir)/" includes
 	cp $<$@ .
 
 clean:

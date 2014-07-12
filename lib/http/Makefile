@@ -15,14 +15,20 @@ interfaces = $(yaccp).mli $(wildcard *.mli)
 sources = $(yaccp).ml $(lexp).ml
 sources += HTTPTypes.ml HTTP.ml
 
+HTTP.cmi: HTTP.cmo
+# Modules with external interfaces 
+e_interfaces = HTTP.ml
+e_interfaces_ = $(patsubst %.ml,%.cmi,$(filter %.ml,$(e_interfaces)))
+e_interfaces_ += $(patsubst %.mli,%.cmi,$(filter %.mli,$(e_interfaces)))
+
 objects = $(patsubst %.ml,%.cmo,$(sources)) 
 
 depfile = Makefile.d
 
 $(lib): $(objects)
 
-includes: $(interfaces)
-	cp $(interfaces) $(include)
+includes: $(e_interfaces_)
+	cp $^ $(include)
 
 $(depfile): $(yaccp).mli $(yaccp).ml $(lexp).ml
 $(depfile): $(sources) $(interfaces)
