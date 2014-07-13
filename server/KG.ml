@@ -1,3 +1,4 @@
+open Printf
 open String
 open Hashtbl
 open List
@@ -28,8 +29,10 @@ let madd_fact g f =
 let mremove_fact g f =
     let rec mremove_edge l e =
         match l with 
-        | [] -> []
-        | {out = o; label = la} :: l when o = e.out && la = e.label -> l
+        | [] -> print_endline "nothing removed."; []
+        | {out = o; label = la} :: l when o = e.out && la = e.label -> 
+                print_endline "something removed.";
+                l
         | _e :: l -> _e :: mremove_edge l e
     in
     let e = {out = f.tail; label = f.rel} in

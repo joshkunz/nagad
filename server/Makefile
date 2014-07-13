@@ -2,7 +2,7 @@
 
 OCAMLLEX_FLAGS =
 OCAMLYACC_FLAGS = 
-OCAMLFLAGS = -I ../include/
+OCAMLFLAGS = -thread -I ../include/
 
 bin = nagad
 
