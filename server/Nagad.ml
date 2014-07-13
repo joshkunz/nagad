@@ -1,29 +1,27 @@
 open Sys
 open Printf
+open Unix 
 open List
 open KG 
 open Query
 open HTTP
 open Thread
-open Mutex;;
+open Mutex
 
-let g = KG.empty () in
-KG.madd_fact g {head="a"; rel="b"; tail="c"};
-KG.madd_fact g {head="c"; rel="b"; tail="a"};
-KG.madd_fact g {head="c"; rel="b"; tail="c"};
-KG.madd_fact g {head="c"; rel="b"; tail="a"};
-let query = [{head=Variable "A"; rel=Variable "B"; tail=Variable "C"}; 
-             {head=Variable "C"; rel=Variable "B"; tail=Value "a"}] in
-let result = Query.query_graph g query in
-printf "Result count: %d\n" (List.length result);
+let handle_client (ic, oc, addr) = 
+    print_endline "Got new client!";;
 
-(*
-let main () =
-    let eval_prog = eval_program handle_query handle_statement in
-    match Sys.argv with
-    | [| _ |] -> repl () |> ignore
-    | [| _; "-f"; n |] -> eval_prog (open_in n |> parse_source) [] |> ignore
-    | _ -> print_endline "Unrecognized flags.";;
+let main port =
+    let tcp = (getprotobyname "tcp").p_proto in
+    let sock = socket PF_INET SOCK_STREAM tcp in
+    ADDR_INET (inet_addr_any, port) |> bind sock;
+    listen sock 10;
 
-main ();;
-*)
+    let rec accept_loop () = 
+        let (csock, addr) = accept sock in
+        let (ic, oc) = (in_channel_of_descr csock, out_channel_of_descr csock) in
+        Thread.create handle_client (ic, oc, addr) |> ignore;
+        accept_loop () in
+    accept_loop ();;
+
+main 80;;
