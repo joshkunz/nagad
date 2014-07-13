@@ -7,7 +7,14 @@ open HTTPTypes
 open Printf
 open List
 
+type uri = string
 exception Header_not_found
+
+let http_1_1 = "HTTP/1.1";;
+
+let read_bytes ic len = 
+    let body = "" in
+    if len = 0 then "" else (really_input ic body 0 len; body);;
 
 module Header : sig
     val get_header : headers -> string -> string 
@@ -47,79 +54,56 @@ end;;
 exception Bad_request of string;;
 exception Bad_response of string;;
 
-(* Types shared with the HTTPBase functor interface *)
-module type HTTP_IOShared = sig
-    type t
-    val as_string : t -> string
-
-    val headers : t -> headers
-    val version : t -> string
-    val body : t -> string
-end;;
-
-module type HTTPBase_intf = sig
-    type t
-    val _sheaders : t -> headers -> t;;
-    val _read : Lexing.lexbuf -> (int -> int -> string) -> t 
-
-    include HTTP_IOShared with type t := t
-end;;
-
-module type HTTPBase = sig
+module type HTTP_COMMON = sig
     type t
     val read : in_channel -> t
     val write : out_channel -> t -> unit
-    val from_string : string -> t 
+    val as_string : t -> string
+
     val set_header : t -> string -> string -> t
     val get_header : t -> string -> string 
 end;;
 
-module type HTTP_IO = sig
-    type t
-    include HTTP_IOShared with type t := t
-    include HTTPBase with type t := t
-end;;
-
-module HTTPBase (R : HTTPBase_intf) : (HTTPBase with type t = R.t) = struct
-    type t = R.t
-
-    let get_header r n = Header.get_header (R.headers r) n;;
-    let set_header r n v = 
-        Header.set_header (R.headers r) n v |> R._sheaders r
-
-    let _string_reader s pos len = 
-        if len = 0 then "" else String.sub s (pos + 1) len;;
-
-    let _channel_reader ic pos len =
-        let body = "" in
-        if len = 0 then "" else (really_input ic body 0 len; body);;
-
-    let from_string s = (Lexing.from_string s |> R._read) (_string_reader s);;
-    let read ic = (Lexing.from_channel ic |> R._read) (_channel_reader ic);;
-    let write oc r = R.as_string r |> output_string oc;;
-end;;
-
-module RequestBase = struct
+module Request : sig
     type t = { meth: string;
                uri: uri; 
                version: string; 
                headers: headers;
                body: string};;
+    include HTTP_COMMON with type t := t
+    val make : string -> uri -> string -> t
+end = struct
+    type t = { meth: string;
+               uri: uri; 
+               version: string; 
+               headers: headers;
+               body: string};;
+    let make meth uri body = 
+        { meth = meth; uri = uri; version = http_1_1;
+          headers = []; body = body };;
 
-    let version r = r.version
-    let headers r = r.headers
-    let body r = r.body
-
-    let _sheaders r h =  
+    let sheaders r h =
         { meth = r.meth; uri = r.uri; version = r.version;
           headers = h; body = r.body };;
 
-    let _read buf reader =
+    let get_header r n = 
+        Header.get_header r.headers n;;
+
+    let set_header r n v = 
+        Header.set_header r.headers n v |> sheaders r
+
+    let read_body hdrs ic = 
+        try 
+            Header.get_header hdrs "Content-Length" |> 
+                int_of_string |> read_bytes ic ;
+        with Header_not_found -> "";;
+
+    let read ic = 
+        let buf = Lexing.from_channel ic in
         try 
             let ((m, p, v), hdrs) = HTTPParse.request HTTPLex.http_token buf in
-            let length = Header.get_header hdrs "Content-Length" |> int_of_string in
-            let body = reader buf.lex_curr_p.pos_cnum length in
-            { meth = m; uri = p; version = v; headers = hdrs; body = body}
+            { meth = m; uri = p; version = v; headers = hdrs; 
+              body = read_body hdrs ic}
         with
         | Parse_error | Failure _ -> raise (Bad_request "Couldn't parse request.")
         | Header_not_found -> raise (Bad_request "No Content-Length header.")
@@ -130,29 +114,50 @@ module RequestBase = struct
         r.meth r.uri r.version
         (Header.string_of_headers r.headers)
         r.body;;
+
+    let write oc r = as_string r |> output_string oc;;
 end;;
 
-module ResponseBase = struct
+module Response : sig
+    type t = { version: string;
+               code: int;
+               reason: string;
+               headers: headers;
+               body: string};;
+    include HTTP_COMMON with type t := t
+    val make : int -> string -> string -> t
+end = struct
     type t = { version: string;
                code: int;
                reason: string;
                headers: headers;
                body: string};;
 
-    let version r = r.version
-    let headers r = r.headers
-    let body r = r.body
+    let make code reason body = 
+        { code = code; reason = reason; version = http_1_1;
+          headers = []; body = body };;
 
-    let _sheaders r h =
+    let sheaders r h =
         { version = r.version; code = r.code; reason = r.reason;
           headers = h; body = r.body };;
 
-    let _read buf reader =
+    let get_header r n = 
+        Header.get_header r.headers n;;
+    let set_header r n v = 
+        Header.set_header r.headers n v |> sheaders r
+
+    let read_body hdrs ic = 
+        try 
+            Header.get_header hdrs "Content-Length" |> 
+                int_of_string |> read_bytes ic;
+        with Header_not_found -> "";;
+
+    let read ic =
+        let buf = Lexing.from_channel ic in
         try 
             let ((v, c, r), hdrs) = HTTPParse.response HTTPLex.http_token buf in
-            let length = Header.get_header hdrs "Content-Length" |> int_of_string in
-            let body = reader buf.lex_curr_p.pos_cnum length in
-            { version = v; code = c; reason = r; headers = hdrs; body = body}
+            { version = v; code = c; reason = r; headers = hdrs; 
+              body = read_body hdrs ic}
         with
         | Parse_error | Failure _ -> raise (Bad_response "Couldn't parse response.")
         | Header_not_found -> raise (Bad_response "No Content-Length header.")
@@ -161,32 +166,12 @@ module ResponseBase = struct
     let as_string r =
         sprintf "%s %d %s\r\n%s\r\n%s" 
         r.version r.code r.reason
-        (Header.string_of_headers r.headers)
+        (if (String.length r.body) > 0 then
+            set_header r "Content-Length" (String.length r.body |>
+            string_of_int) |> fun x -> Header.string_of_headers x.headers
+        else
+            Header.string_of_headers r.headers)
         r.body;;
-end;;
 
-module Request : sig
-    include HTTP_IO
-    include HTTPBase with type t := t
-    val meth : t -> string
-    val uri : t -> uri 
-end = struct
-    include RequestBase
-    include (HTTPBase(RequestBase) : 
-        module type of HTTPBase(RequestBase) with type t := t)
-    let meth r = r.meth
-    let uri r = r.uri
-end;;
-
-module Response : sig
-    include HTTP_IO
-    include HTTPBase with type t := t
-    val code : t -> int
-    val reason : t -> string
-end = struct
-    include ResponseBase 
-    include (HTTPBase(ResponseBase) : 
-        module type of HTTPBase(ResponseBase) with type t := t)
-    let code r = r.code
-    let reason r = r.reason
+    let write oc r = as_string r |> output_string oc; flush oc;;
 end;;
