@@ -8,7 +8,7 @@ module Context = struct
     let empty = [];;
     let binding c k = List.assoc k c;;
     let mem c k = List.mem_assoc k c;;
-    let bind c k v = (t, v) :: c;;
+    let bind c k v = (k, v) :: c;;
 
     let rec as_string = function
         | [] -> ""
@@ -46,7 +46,7 @@ let field_match (qf, ef) context =
 
 (* Returns a list of tuples, the relation between fact fields
  * and query fields *)
-let epairs (q : Query.query_triple) (e : KG.fact) = 
+let epairs (q : query_triple) (e : KG.fact) = 
     [(q.head, e.head); (q.rel, e.rel); (q.tail, e.tail)];;
 
 (* Checks to see if a given set of pairs 'is a match'. That is to say, that
@@ -60,6 +60,15 @@ let is_match pairs context =
     List.fold_left match_item (true, context) pairs;;
 
 let matches_for graph q context =
+    let facts_for_query graph query =
+        match query.head with
+        | Value x -> KG.facts_off graph x
+        | Variable x when Context.mem context x ->
+            KG.facts_off graph x
+        (* If the head of the query is an unbound variable, then we have
+         * to check against the entire graph *)
+        | Variable x -> KG.all_facts graph 
+    in
     let rec match_facts  = function
     | [] -> []
     | fact :: facts ->
@@ -69,7 +78,7 @@ let matches_for graph q context =
         else 
             (match_facts facts)
     in
-    KG.facts_off graph q.head |> match_facts;;
+    facts_for_query graph q |> match_facts;;
 
 (* -> (graph, context) *)
 let rec rquery_graph graph query context path = 
@@ -81,8 +90,8 @@ and split graph qs path facts =
     match facts with
     | [] -> []
     | (f, cntxt) :: fs ->
-        (rquery_graph (KG.remove_fact graph f) cntxt (KG.add_fact path f)) @
-        (split graph qs graph path fs);;
+        (rquery_graph (KG.remove_fact graph f) qs cntxt (KG.add_fact path f)) @
+        (split graph qs path fs);;
 
 let query_graph graph query =
-    query_tree graph query Context.emtpy (KG.emtpy ());;
+    rquery_graph graph query Context.empty (KG.empty ());;

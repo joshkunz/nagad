@@ -8,6 +8,7 @@ module Graph = Hashtbl.Make(struct
     let equal k1 k2 = (String.compare k1 k2) = 0;;
     let hash k = Hashtbl.hash k;;
 end);;
+
 type edge = {out: string; label: string};;
 type fact = {head: string; rel: string; tail: string};;
 
@@ -52,3 +53,9 @@ let facts_off g n =
         Graph.find g n |> 
         List.map (fun e -> {head = n; rel = e.label; tail = e.out})
     else [];;
+
+(* Yields a list of all facts in the graph. *)
+let all_facts g : fact list =
+    let aggregator k v a = 
+        (List.map (fun e -> {head=k; rel=e.label; tail=e.out}) v) @ a in
+    Graph.fold aggregator g [];;
