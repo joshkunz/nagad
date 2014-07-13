@@ -11,6 +11,7 @@ end);;
 type edge = {out: string; label: string};;
 type fact = {head: string; rel: string; tail: string};;
 
+(* Yields a new empty graph *)
 let empty () = Graph.create 1;;
 
 (** Add a fact to the given knowledge graph. *)
@@ -24,22 +25,30 @@ let madd_fact g f =
 (** Remove the first fact that matches 'f' from the given graph. This function
   * has no effect if f is not in g. *)
 let mremove_fact g f =
-    let rec remove_edge l e =
+    let rec mremove_edge l e =
         match l with 
         | [] -> []
         | {out = o; label = la} :: l when o = e.out && la = e.label -> l
-        | _e :: l -> _e :: remove_edge l e
+        | _e :: l -> _e :: mremove_edge l e
     in
     let e = {out = f.tail; label = f.rel} in
     try
-        (Graph.find g f.head |> remove_edge) e |> Graph.replace g f.head
+        (Graph.find g f.head |> mremove_edge) e |> Graph.replace g f.head
     with Not_found -> ();;
 
-let add_fact g f = madd_fact (Graph.copy g) f;;
-let remove_fact g f = mremove_fact (Graph.copy g) f;;
+(* Non-mutating versions of add_fact and remove_fact *)
+let add_fact g f = 
+    let ng = (Graph.copy g) in
+    madd_fact ng f; ng;;
 
-let facts_off g f =
-    if Graph.mem g f.head then
-        Graph.find g f.head |> 
-        List.map (fun e -> {head = f.head; rel = e.label; tail = e.out})
+let remove_fact g f = 
+    let ng = (Graph.copy g) in
+    mremove_fact ng f; ng;;
+
+(* Yields a list of all facts 'f' such that there is an edge n -> f. Yields
+ * an empty list if there are no such facts. *)
+let facts_off g n =
+    if Graph.mem g n then
+        Graph.find g n |> 
+        List.map (fun e -> {head = n; rel = e.label; tail = e.out})
     else [];;

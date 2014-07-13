@@ -1,104 +1,88 @@
-open Fact
+open List
+open KG 
 
-module Query : sig
+module Context = struct
+    type entry = (string * string)
+    type t = entry list
 
-type query_item = Variable of string | Value of string
-type qtri = query_item * query_item * query_item
-type query = qtri list
+    let empty = [];;
+    let binding c k = List.assoc k c;;
+    let mem c k = List.mem_assoc k c;;
+    let bind c k v = (t, v) :: c;;
 
-type context_entry = string * string
-type context = context_entry list
+    let rec as_string = function
+        | [] -> ""
+        | (k, v) :: cs -> 
+            ("(" ^ k ^ ", " ^ v ^ ")\n") ^ (as_string cs);;
+end;;
 
-val in_context : string -> context -> bool
-val edge_pairs : qtri -> Fact.fact -> (query_item * string) list
-val field_match : (query_item * string) -> context -> (bool * context)
-val edge_pairs_matched : (query_item * string) list -> context -> (bool * context)
-val matches_of : qtri -> Fact.fact_db -> context -> (Fact.fact * context) list
-val query_graph : query -> Fact.fact_db -> Fact.fact_db list
+type query_item = Variable of string | Value of string;;
+type query_triple = {head: query_item;
+                      rel: query_item;
+                     tail: query_item};;
 
-end =  struct
-
-type query_item = Variable of string | Value of string
-type qtri = query_item * query_item * query_item
-type query = qtri list
-
-type context_entry = string * string
-type context = context_entry list
-
-let rec context_as_string = function 
-    | [] -> ""
-    | (c1, c2) :: cs -> 
-        ("(" ^ c1 ^ ", " ^ c2 ^ ")\n") ^ (context_as_string cs);;
+type query = query_triple list;;
 
 let qitem_as_string = function
     | Variable a -> a ^ "?"
     | Value a -> a;;
 
-let rec qtri_as_string = function
-    | (a, b, c) ->
+let rec qtriple_as_string = function
+    | {head=a; rel=b; tail=c} ->
         "(" ^ (qitem_as_string a) ^ ", "
             ^ (qitem_as_string b) ^ ", "
             ^ (qitem_as_string c) ^ ")";;
 
-let in_context v context =
-    try 
-        List.assoc v context |> ignore; true;
-    with
-    | Not_found -> false;;
-
-let rec pop_edge graph edge =
-    match graph with 
-    | [] -> [] 
-    | e :: es when e = edge -> es
-    | e :: es -> e :: (pop_edge es edge);;
-
-let edge_pairs (q1, q2, q3) (e : Fact.fact) = 
-    [(q1, e.head); (q2, e.rel); (q3, e.tail)];;
-
-let field_match (qfield, efield) context =
-    match qfield with
+let field_match (qf, ef) context =
+    match qf with
     | Variable x ->
-        if in_context x context then 
-            (efield = (List.assoc x context), context)
+        if Context.mem context x then 
+            (ef = (Context.binding context x), context)
         else
             (* If there is not binding for the variable in the context,
              * then automatically match and add the binding *)
-            (true, (x, efield) :: context)
-    | Value x -> (efield = x, context);;
+            (true, Context.bind context x ef)
+    | Value x -> (ef = x, context);;
 
-let edge_pairs_matched pairs context =
-    let reducer (v, c) x = 
+(* Returns a list of tuples, the relation between fact fields
+ * and query fields *)
+let epairs (q : Query.query_triple) (e : KG.fact) = 
+    [(q.head, e.head); (q.rel, e.rel); (q.tail, e.tail)];;
+
+(* Checks to see if a given set of pairs 'is a match'. That is to say, that
+ * all constants are equal, and that all variables can be bound meaningfully.
+ * This function yeilds true when the pairs all match, and a context that
+ * contains any bindings that were added while performing the match. *)
+let is_match pairs context =
+    let match_item (v, c) x = 
         let (nv, nc) = field_match x c in ((v && nv), nc);
     in
-    List.fold_left reducer (true, context) pairs;;
+    List.fold_left match_item (true, context) pairs;;
 
-let rec matches_of qt kgraph context =
-    match kgraph with
+let matches_for graph q context =
+    let rec match_facts  = function
     | [] -> []
     | fact :: facts ->
-        let (did_match, _context) = 
-            edge_pairs_matched (edge_pairs qt fact) context
-        in
+        let (did_match, _context) = is_match (epairs q fact) context in
         if did_match then 
-            (fact, _context) :: (matches_of qt facts context)
-        else
-            (matches_of qt facts context);;
+            (fact, _context) :: (match_facts facts)
+        else 
+            (match_facts facts)
+    in
+    KG.facts_off graph q.head |> match_facts;;
 
-let rec query_tree query kgraph context path = 
+(* -> (graph, context) *)
+let rec rquery_graph graph query context path = 
     match query with
-    | [] -> [path]
+    | [] -> [(path, context)]
     | q :: qs -> 
-        matches_of q kgraph context |> mapping qs kgraph path
-and mapping qs kgraph path edges =
-    match edges with
+        matches_for graph q context |> split graph qs path
+and split graph qs path facts =
+    match facts with
     | [] -> []
-    | (e, cntxt) :: es ->
-        let fpath = 
-            query_tree qs (pop_edge kgraph e) cntxt (e :: path)
-        in
-        fpath @ (mapping qs kgraph path es)
+    | (f, cntxt) :: fs ->
+        (rquery_graph (KG.remove_fact graph f) cntxt (KG.add_fact path f)) @
+        (split graph qs graph path fs);;
 
-let query_graph query kgraph =
-    query_tree query kgraph [] [];;
-
-end;;
+let query_graph graph query =
+    query_tree graph query Context.emtpy (KG.emtpy ());;
