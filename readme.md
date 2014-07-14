@@ -56,14 +56,24 @@ knowledge graph in the form explained above. Python example
     import requests
     response = requests.get("/graph")
 
+On success, the status code __200__ will be returned and the json-representation
+of the knowledge graph will be in the response body. *Example response graph*:
+
+    {"a": [{"label": "b", "to": "q"}, {"label": "b", "to": "z"}],
+     "b": [{"label": "c", "to": "x"}, {"label": "c", "to": "z"}],
+     "z": [{"label": "b", "to": "a"}]}
+
 If you perform a __POST__ request against this endpoint and the body
 of the __POST__ request is a graph then the knowledge graph managed by 
 the server is updated to contain the union of the submitted graph and the
 graph on the server.
 
     import requests, json
-    graph = ...
+    graph = ... 
     response = requests.post("/graph", data = json.dumps(graph))
+
+An empty response and __200__ response code means that the update was
+successful.
 
 ### /query
 
@@ -83,3 +93,13 @@ to the value "value".
     import requests, json
     query_graph = ...
     response = requests.post("/query", data = json.dumps(query_graph))
+
+On success, the response code will be __200__ and the query result in JSON format
+will be in the response body. *Example response*:
+
+    [{"context": {"A": "z", "B": "b", "C": "a"},
+      "graph": {"a": [{"label": "b", "to": "z"}],
+                 "z": [{"label": "b", "to": "a"}]}},
+     {"context": {"A": "a", "B": "b", "C": "z"},
+      "graph": {"a": [{"label": "b", "to": "z"}],
+                 "z": [{"label": "b", "to": "a"}]}}]
