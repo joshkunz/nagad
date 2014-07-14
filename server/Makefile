@@ -19,7 +19,7 @@ abs_libs = $(addprefix $(libloc)/,$(addsuffix .cma,$(local_libs)))
 default: $(bin)
 
 $(abs_libs):
-	$(foreach lib,$(addsuffix .cma,$(local_libs)),$(MAKE) -C $(libloc) $(lib);)
+	$(foreach lib,$(addsuffix .cma,$(local_libs)),$(MAKE) -C .. $(lib);)
 
 $(depfile): $(sources)
 
