@@ -3,18 +3,13 @@ open Parsing
 open HTTPLex
 open HTTPParse
 open HTTPTypes
+open Buffer
 
 open Printf
 open List
 
 type uri = string
 exception Header_not_found
-
-let http_1_1 = "HTTP/1.1";;
-
-let read_bytes ic len = 
-    let body = "" in
-    if len = 0 then "" else (really_input ic body 0 len; body);;
 
 module Header : sig
     val get_header : headers -> string -> string 
@@ -50,6 +45,21 @@ end = struct
         List.map string_of_header hs |> String.concat "";;
 
 end;;
+
+let http_1_1 = "HTTP/1.1";;
+
+let read_body hdrs ic buf =
+    try 
+        let len = Header.get_header hdrs "Content-Length" |> int_of_string in
+        let body = String.create len in
+        let body_in_buffer = buf.lex_buffer_len - buf.lex_curr_pos in
+        if body_in_buffer > 0 then begin
+            String.blit buf.lex_buffer buf.lex_curr_pos body 0 body_in_buffer;
+            if len - body_in_buffer > 0 then
+                really_input ic body body_in_buffer (len - body_in_buffer);
+        end; body;
+    with
+    | Header_not_found -> "";;
 
 exception Bad_request of string;;
 exception Bad_response of string;;
@@ -92,18 +102,12 @@ end = struct
     let set_header r n v = 
         Header.set_header r.headers n v |> sheaders r
 
-    let read_body hdrs ic = 
-        try 
-            Header.get_header hdrs "Content-Length" |> 
-                int_of_string |> read_bytes ic ;
-        with Header_not_found -> "";;
-
     let read ic = 
         let buf = Lexing.from_channel ic in
         try 
             let ((m, p, v), hdrs) = HTTPParse.request HTTPLex.http_token buf in
             { meth = m; uri = p; version = v; headers = hdrs; 
-              body = read_body hdrs ic}
+              body = read_body hdrs ic buf}
         with
         | Parse_error | Failure _ -> raise (Bad_request "Couldn't parse request.")
         | Header_not_found -> raise (Bad_request "No Content-Length header.")
@@ -115,7 +119,7 @@ end = struct
         (Header.string_of_headers r.headers)
         r.body;;
 
-    let write oc r = as_string r |> output_string oc;;
+    let write oc r = as_string r |> output_string oc; flush oc;;
 end;;
 
 module Response : sig
@@ -190,18 +194,12 @@ end = struct
     let set_header r n v = 
         Header.set_header r.headers n v |> sheaders r
 
-    let read_body hdrs ic = 
-        try 
-            Header.get_header hdrs "Content-Length" |> 
-                int_of_string |> read_bytes ic;
-        with Header_not_found -> "";;
-
     let read ic =
         let buf = Lexing.from_channel ic in
         try 
             let ((v, c, r), hdrs) = HTTPParse.response HTTPLex.http_token buf in
             { version = v; code = c; reason = r; headers = hdrs; 
-              body = read_body hdrs ic}
+              body = read_body hdrs ic buf}
         with
         | Parse_error | Failure _ -> raise (Bad_response "Couldn't parse response.")
         | Header_not_found -> raise (Bad_response "No Content-Length header.")

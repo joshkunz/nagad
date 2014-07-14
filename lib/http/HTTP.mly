@@ -14,9 +14,11 @@
 %type<HTTPTypes.Parse.response> response
 %%
 response:
+    | RESPONSE CRLF CRLF                 { ($1, []) }
     | RESPONSE CRLF message_headers CRLF { ($1, $3) }
 
 request:
+    | REQUEST CRLF CRLF                 { ($1, []) }
     | REQUEST CRLF message_headers CRLF { ($1, $3) }
 
 message_headers:
