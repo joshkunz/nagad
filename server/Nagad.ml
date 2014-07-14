@@ -56,38 +56,50 @@ let json_for_graph g =
     |> fun x -> Jsonm.encode x `End |> ignore;
     Buffer.contents buf;;
 
+exception Json_not_graph
+
 let graph_for_json j =
     let open KG in
     let rec p10 d g h r t = p4 d (KG.add_fact g {head=h; rel=r; tail=t}) h
     and p8 d g h r = match !* d with
         | `String t -> p10 d g h r t
+        | _ -> raise Json_not_graph
     and p8_1 d g h t = match !* d with
         | `String r -> p10 d g h r t
+        | _ -> raise Json_not_graph
     and p7 d g h r = match !* d with
         | `Name "to" -> p8 d g h r
+        | _ -> raise Json_not_graph
     and p7_1 d g h t = match !* d with
         | `Name "label" -> p8_1 d g h t
+        | _ -> raise Json_not_graph
     and p6 d g h = match !* d with
         | `String r -> p7 d g h r
+        | _ -> raise Json_not_graph
     and p6_1 d g h = match !* d with
         | `String t -> p7_1 d g h t
+        | _ -> raise Json_not_graph
     and p5 d g h = match !* d with
         | `Name "label" -> p6 d g h 
         | `Name "to" -> p6_1 d g h 
+        | _ -> raise Json_not_graph
     and p4 d g h = match !* d with
         | `Os -> p5 d g h
         | `Oe -> p4 d g h
         | `Ae -> p2 d g
+        | _ -> raise Json_not_graph
     and p3 d g h = match !* d with
         | `As -> p4 d g h
+        | _ -> raise Json_not_graph
     and p2 d g = match !* d with
         | `Name h -> p3 d g h
         | `Oe -> p1 d g
+        | _ -> raise Json_not_graph
     and p1 d g = match !* d with
         | `Os -> p2 d g
         | `End -> g
+        | _ -> raise Json_not_graph
     in
-
     p1 (Jsonm.decoder (`String j)) (KG.empty ());;
 
 (* Close the connection that backs the given streams *)
@@ -104,21 +116,20 @@ let handle_client (ic, oc, addr) =
             begin match request.meth with
             | "GET" -> 
                 lock g;
-                json_for_graph !graph 
-                    |> Response.make 200 
-                    |> Response.write oc;
-                unlock g;
+                let json = json_for_graph !graph in
+                unlock g; Response.make 200 json;
             | "POST" ->
-                graph_for_json request.body 
-                    |> json_for_graph 
-                    |> print_endline;
-                Response.make 200 "" |> Response.write oc;
-            | _ -> raise (Failure "Bad Method...")
-            end
-        | "/query" -> Response.make 200 "Query." |> Response.write oc;
-        | _ -> Response.make 404 "" |> Response.write oc;
+                begin try
+                    let graph = graph_for_json request.body in
+                    Response.make 200 "";
+                with Failure x -> Response.make 500 x;
+                end
+            | _ -> Response.make 405 ""
+            end;
+        | "/query" -> Response.make 200 "Query.";
+        | _ -> Response.make 404 "";
     in begin try
-        Request.read ic |> handle_request;
+        Request.read ic |> handle_request |> Response.write oc;
     with
         (* | x -> Response.make 500 "" |> Response.write oc; *)
         | x -> raise x 
