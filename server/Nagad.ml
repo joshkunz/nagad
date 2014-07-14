@@ -52,20 +52,15 @@ let graph_for_json j =
     let graph = KG.empty () in
     JsonExt.cannonize dec |> parse_graph graph; graph;;
 
-let query_for_json j =
-    let parse_item i = 
-        if is_titlecase i then Variable i else Value i in
-    let parse_triple = function 
-        | Array [String i1; String i2; String i3] ->
-            {head = parse_item i1; 
-              rel = parse_item i2; 
-             tail = parse_item i3}
-        | _ -> raise JsonExt.Json_decode_error in
-    let parse_query = function
-        | Array triples -> List.map parse_triple triples
-        | _ -> raise JsonExt.Json_decode_error in
-    let dec = Jsonm.decoder (`String j) in
-    JsonExt.cannonize dec |> parse_query;;
+let query_for_graph g = 
+    let item_for_string s = 
+        if is_titlecase s then Variable s else Value s in
+    let triple_for_edge k l edge = 
+        {head = item_for_string k; 
+          rel = item_for_string edge.label; 
+         tail = item_for_string edge.out} 
+        :: l in
+    KG.Graph.fold (fun k es l -> List.fold_left (triple_for_edge k) l es) g [];;
 
 (* Cannonical json for a query context *)
 let cjson_for_context c = 
@@ -118,7 +113,8 @@ let handle_client (ic, oc, addr) =
         | "/query" ->
             begin match request.meth with
             | "POST" -> 
-                query_for_json request.body 
+                graph_for_json request.body
+                    |> query_for_graph
                     |> sync g (fun q -> Query.query_graph !graph q) 
                     |> json_for_query_results
                     |> Response.make 200
