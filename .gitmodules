@@ -1,6 +1,6 @@
 [submodule "lib/jsonm/jsonm-src"]
 	path = lib/jsonm/jsonm-src
-	url = http://erratique.ch/repos/jsonm.git
+    url = git@gitlab.flux.utah.edu:kg/jsonm.git
 [submodule "lib/uutf/uutf-src"]
 	path = lib/uutf/uutf-src
-	url = http://erratique.ch/repos/uutf.git
+    url = git@gitlab.flux.utah.edu:kg/uutf.git
