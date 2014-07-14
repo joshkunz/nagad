@@ -18,117 +18,68 @@ Then, you just have to run make to build the naga server program `nagad`:
         ...
     $ ./nagad
 
-# Documentation
+# API Documentation
 
-The Naga program is primarily concerned with the manipulation and querying
-of a "Fact Database" or "Knowledge Graph" (the two terms are synonymous). The
-database is manipulated and queried through the use of the Datalog language. For
-example, we can add fact to the fact database by using the `fact` statement:
+The NAGA server exposes an HTTP interface that allows you to manipulate and
+query the knowledge graph using JSON.
 
-    > fact(a, b, c).
+## Graph Representation
 
-By entering the above into the REPL we are notifying Naga of an edge in the
-knowledge graph that connects node 'a' to node 'c' via an edge labeled 'b'.
-We can specify edges multiple times. For example, if we wanted to say that there
-were two links from node 'a' to node 'c' labeled 'b' we could enter that
-command again.
+Since essentially all API methods involve transferring a graph between the
+client and the server, NAGA uses a standard graph representation for these
+graphs. It looks like this:
 
-A listing of all facts currently known (i.e. previously entered) by Naga can
-be obtained by using the command `facts`:
+    {
+        "node A": [ { "label": "some label", "to": "some node" },
+                    { "label": "other label", "to": "other node" } ],
+        "some node": [ { "label": "some label", "to": "other node" } ]
+    }
 
-    > facts.
-    fact(a, b, c).
+Graphs in NAGA are represented as an *adjacency list*, the top-level key
+(for example "node A") is a vertex in the graph, and it's value is a list
+of it's edges. Each edge has two fields, a "label" that is the label for that
+edge and, a "to" field which is the name of the vertex on the opposite edge.
+All edges are directional, there is an edge from "node A" to "some node" but
+not from "some node" to "node A". Also, there are no repeated edges. You can
+supply them in your message but they will removed.
 
-We can also save a snapshot of the current fact database for later by using
-an extended version of the `facts` command. We can also render a PDF representation
-of the fact database as a graph by using the `graph` command:
+In the following sections I will refer to this representation as a 'graph'.
 
-    > facts("example.facts").
-    > graph("example.pdf").
+## Endpoints 
 
-This code snippet above also shows another feature of the language, escaped 
-strings. In the previous snippets we had omitted the double-quotes since we
-weren't using any reserved characters like `(`, `)`, `,`, or `.`. However, to spell
-file-names we need to use the `.` character so we escaped the string. Escaped
-strings can be used anywhere un-escaped strings are, but they are considered
-variables if the first character in the string is upper-case (more on that next).
+### /graph
 
-Also, previously-saved fact databases can be added to the current fact-database
-by using the `source` command:
+Performing a __GET__  request against this endpoint will return the current
+knowledge graph in the form explained above. Python example 
+(using the requests library):
 
-    > source("example.facts").
+    import requests
+    response = requests.get("/graph")
 
-To help aid in the writing of longer programs that can be supplied to the
-Naga program with the `-f` switch, comments can be written by using the
-`#` character. Comments proceed from the `#` character to the end of the line.
+If you perform a __POST__ request against this endpoint and the body
+of the __POST__ request is a graph then the knowledge graph managed by 
+the server is updated to contain the union of the submitted graph and the
+graph on the server.
 
-## Queries
+    import requests, json
+    graph = ...
+    response = requests.post("/graph", data = json.dumps(graph))
 
-The real power of the Naga system is its ability to let you query the fact
-database. Remember that the fact database is just another way of saying
-"the knowledge graph". A query in Naga is specified as a graph where nodes
-and edges can be *variables*. The result of a query is a set of sub-graphs 
-of the knowledge graph that 'match' the query graph. A subgraph 'matches' the
-query graph if the edge and node labels match the sub-graph's edge and node labels
-and any variables can be assigned consistently. Now, this may seem a little
-abstract, so lets look at an example. Lets say we have a fact database that looks
-like this:
-    
-    > facts.
-    fact(not-c, not-b, not-f).
-    fact(not-a, not-b, not-c).
-    fact(c, b, f).
-    fact(a, b, c).
+### /query
 
-Now, lets say we want to find a subgraphs that have end-nodes X and Y, and
-intermediate node Z, and all edges are of type Q. We can have naga find all
-of these for us by writing:
+If you perform __POST__ request against this endpoint and the body
+of the __POST__ request is a query graph, the query will be performed and
+the results will be returned. A query graph is supplied in exactly the same
+format as any other graph except that any vertices or edge-labels that start
+with a capital letter are considered to be variables.
 
-    > fact(X, Q, Z), fact(Z, Q, Y).
-    Result 0:
-    fact(not-c, not-b, not-f).
-    fact(not-a, not-b, not-c).
-    Result 1:
-    fact(c, b, f).
-    fact(a, b, c).
-    End of results.
+The result of a query is a list of "query result" objects. A query result object
+has two fields. The "graph" field contains the graph that was matched to the
+query graph. The "context" field contains a mapping from variables -> values,
+if you supplied a query graph with the variable "A", then the context would contain
+a mapping { ... "A": "value" ... } assuming that the variable "A" was bound
+to the value "value".
 
-You can see that Naga found all sub-graphs that matched that abstract description
-and then wrote their facts out. Remember that all strings that start with 
-an upper-case letter are considered to be variables, if we wanted to only
-include results where the edge Q was equal to 'b', we could re-write our
-query to be:
-
-    > fact(X, b, Z), fact(Z, b, Y).
-    Result 0:
-    fact(c, b, f).
-    fact(a, b, c).
-    End of results.
-
-As you can see, the first result is now omitted since it's edges were of type
-'not-b'. You can also see how we built the graph by chaining together multiple
-fact-statements. Since each fact is an edge, this is an easy way of specifying
-a graph.
-
-Now, even though Naga is capable of running these queries and discovering the
-subgraphs, trying to read them is this textual form can be quite difficult and
-error-prone. To help make understanding the results easier, the result graphs can
-be rendered as a pdf by using the structure:
-
-    > graph("example-result.pdf") :- fact(X, b, Z), fact(Z, b, Y).
-
-Which will render the query we provided on the right-hand site of the `:-`
-(implication) using the graph command we specified on the left-hand side.
-
-## Command Listing
-
-|   |   |
-|---|---|
-| `finish.`, `end.`, `done.`, `exit.` | Exit the program. |
-| `fact(a, b, c).` | Add a fact to the database.|
-|`facts.` | Display facts in the fact base. |
-| `facts(name).` | Write a list of the facts in the fact base to a file named 'name', any files with the same name are overwritten. |
-| `graph.` | Print out the DOT representation of this graph. |
-| `graph(name).` | Write out a PDF of the knowledge graph to a file named 'name'. Overwrites any file with that name in this directory. |
-| `source(name).` | Read and run all commands in the file named 'name' with the current fact database. This can be used to load fact databases saved previously with the 'facts' command, or to automate queries in an interactive session. |
-| `help.`, `commands.` | Prints a command listing. |
+    import requests, json
+    query_graph = ...
+    response = requests.post("/query", data = json.dumps(query_graph))
