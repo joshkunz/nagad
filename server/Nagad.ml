@@ -108,6 +108,17 @@ let terminate (ic, oc) =
     close_in_noerr ic;
     close_out_noerr oc;;
 
+(* Run the function 'f' over the data-structure 'a' under the lock 'l'.
+ * It ensures that the code is always run under with a locked data-structure
+ * and that the structure is always unlocked after the function exits. *)
+let sync f l a = 
+    Mutex.lock l;
+    try 
+        let out = f a in
+        Mutex.unlock l; out;
+    with
+    | x -> Mutex.unlock l; raise x;;
+
 let handle_client (ic, oc, addr) = 
     let open Request in 
     let handle_request request = 
@@ -115,15 +126,12 @@ let handle_client (ic, oc, addr) =
         | "/graph" -> 
             begin match request.meth with
             | "GET" -> 
-                lock g;
-                let json = json_for_graph !graph in
-                unlock g; Response.make 200 json;
+                sync (fun _ -> json_for_graph !graph) g () 
+                    |> Response.make 200;
             | "POST" ->
-                begin try
-                    let graph = graph_for_json request.body in
-                    Response.make 200 "";
-                with Failure x -> Response.make 500 x;
-                end
+                graph_for_json request.body
+                    |> sync (fun ug -> mjoin_graph_left !graph ug) g;
+                Response.make 200 "";
             | _ -> Response.make 405 ""
             end;
         | "/query" -> Response.make 200 "Query.";
@@ -149,9 +157,5 @@ let main port =
         Thread.create handle_client (ic, oc, addr) |> ignore;
         accept_loop () in
     accept_loop ();;
-
-KG.madd_fact !graph {head="a"; rel="b"; tail="c"};;
-KG.madd_fact !graph {head="c"; rel="b"; tail="a"};;
-KG.madd_fact !graph {head="a"; rel="z"; tail="t"};;
 
 main 8080;;
