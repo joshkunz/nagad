@@ -2,25 +2,21 @@
 
 First things first you're going to need is an OCaml compiler/interpreter. You
 can usually obtain this using your OS's package manager. For example, on OSX
-you can run `brew install ocaml`, or on Debian based Linux distros you can run
-`apt-get install ocaml`.
+you can run `brew install ocaml`, or on Debian based Linux distros 
+(for example Ubuntu) you can run `apt-get install ocaml`.
 
-To make naga, simply run the 'make' command, and then invoke the generated
-'naga' program.
+To build naga, you first need to retrieve and build its dependencies. 
+Since these are handled with git submodules, it's fairly easy to do:
+    
+    $ git submodule init
+    $ git submodule update
+    $ make libs
+
+Then, you just have to run make to build the naga server program `nagad`:
 
     $ make
         ...
-    $ ./naga
-
-When invoked, the NAGA binary will start a command oriented REPL, you can
-see the list of commands from within the REPL by running `help.` from
-within the REPL. Complete documentation of the REPL language is given in the
-following section.
-
-You can provide Naga with an input file that will be executed with the use
-of the interactive REPL with the `-f` switch:
-
-    $ ./naga -f input.naga
+    $ ./nagad
 
 # Documentation
 
