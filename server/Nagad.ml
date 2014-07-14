@@ -8,99 +8,60 @@ open HTTP
 open Thread
 open Mutex
 open Jsonm
+open JsonExt
 open Buffer
 
 let graph = ref (KG.empty ());;
 let g = Mutex.create ();;
 
-(* Shorter, composable form of json encode *)
-let (|@) e l = 
-    match Jsonm.encode e (`Lexeme l) with
-    | `Ok -> e
-    | _ -> Failure("Internal JSON Encoder error.") |> raise;;
-
-type decoded = [ 
-    | `String of string
-    | `Name of string
-    | `Os | `Oe | `As | `Ae | `End ];;
-
-let (!*) d : decoded = 
-    match Jsonm.decode d with
-    | `Lexeme `Os -> `Os
-    | `Lexeme `Oe -> `Oe
-    | `Lexeme `As -> `As
-    | `Lexeme `Ae -> `Ae
-    | `Lexeme (`String s) -> `String s
-    | `Lexeme (`Name n) -> `Name n
-    | `End -> `End
-    | _ -> raise (Failure "Unhandled json decoded case.");;
-
 let json_for_graph g = 
-    let rec json_for_edge enc e =
-        enc 
-        |@ `Os
-            |@ `Name "label" |@ `String e.label
-            |@ `Name "to"    |@ `String e.out
-        |@ `Oe 
-    in
-    let json_for_adj_list k v enc = 
-        enc
-        |@ `Name k 
-            |@ `As 
-                |> fun x -> List.fold_left json_for_edge x v 
-            |@ `Ae
-    in
+    let rec json_for_edge e =
+        Object [
+             ("label", String e.label)
+            ;("to", String e.out)] in
+    let json_for_adj_list k v l = 
+        (k, Array (List.map json_for_edge v)) :: l in
     let buf = Buffer.create 100 in
-    Jsonm.encoder (`Buffer buf) |@ `Os 
-    |> KG.Graph.fold json_for_adj_list g |@ `Oe
-    |> fun x -> Jsonm.encode x `End |> ignore;
+    let enc = Jsonm.encoder (`Buffer buf) in
+    Object (KG.Graph.fold json_for_adj_list g []) 
+        |> JsonExt.decannonize enc |> ignore;
     Buffer.contents buf;;
 
-exception Json_not_graph
-
 let graph_for_json j =
-    let open KG in
-    let rec p10 d g h r t = p4 d (KG.add_fact g {head=h; rel=r; tail=t}) h
-    and p8 d g h r = match !* d with
-        | `String t -> p10 d g h r t
-        | _ -> raise Json_not_graph
-    and p8_1 d g h t = match !* d with
-        | `String r -> p10 d g h r t
-        | _ -> raise Json_not_graph
-    and p7 d g h r = match !* d with
-        | `Name "to" -> p8 d g h r
-        | _ -> raise Json_not_graph
-    and p7_1 d g h t = match !* d with
-        | `Name "label" -> p8_1 d g h t
-        | _ -> raise Json_not_graph
-    and p6 d g h = match !* d with
-        | `String r -> p7 d g h r
-        | _ -> raise Json_not_graph
-    and p6_1 d g h = match !* d with
-        | `String t -> p7_1 d g h t
-        | _ -> raise Json_not_graph
-    and p5 d g h = match !* d with
-        | `Name "label" -> p6 d g h 
-        | `Name "to" -> p6_1 d g h 
-        | _ -> raise Json_not_graph
-    and p4 d g h = match !* d with
-        | `Os -> p5 d g h
-        | `Oe -> p4 d g h
-        | `Ae -> p2 d g
-        | _ -> raise Json_not_graph
-    and p3 d g h = match !* d with
-        | `As -> p4 d g h
-        | _ -> raise Json_not_graph
-    and p2 d g = match !* d with
-        | `Name h -> p3 d g h
-        | `Oe -> p1 d g
-        | _ -> raise Json_not_graph
-    and p1 d g = match !* d with
-        | `Os -> p2 d g
-        | `End -> g
-        | _ -> raise Json_not_graph
-    in
-    p1 (Jsonm.decoder (`String j)) (KG.empty ());;
+    let parse_edge g k = function 
+        | Object [
+             ("label", String l)
+            ;("to", String t) ] ->
+                {KG.head = k; KG.rel = l; KG.tail = t} |> KG.madd_fact g
+        | _ -> raise JsonExt.Json_decode_error in
+    let parse_adj g = function
+        | (k, Array adj) -> List.iter (parse_edge g k) adj
+        | _ -> raise JsonExt.Json_decode_error in
+    let parse_graph g = function
+        | Object adj_lists -> List.iter (parse_adj g) adj_lists
+        | _ -> raise JsonExt.Json_decode_error in
+    let dec = Jsonm.decoder (`String j) in
+    let graph = KG.empty () in
+    JsonExt.cannonize dec |> parse_graph graph; graph;;
+
+let is_titlecase s = 
+    String.length s > 0 
+    && 'A' <= s.[0] && s.[0] <= 'Z';;
+
+let query_for_json j =
+    let parse_item i = 
+        if is_titlecase i then Variable i else Value i in
+    let parse_triple = function 
+        | Array [String i1; String i2; String i3] ->
+            {head = parse_item i1; 
+              rel = parse_item i2; 
+             tail = parse_item i3}
+        | _ -> raise JsonExt.Json_decode_error in
+    let parse_query = function
+        | Array triples -> List.map parse_triple triples
+        | _ -> raise JsonExt.Json_decode_error in
+    let dec = Jsonm.decoder (`String j) in
+    JsonExt.cannonize dec |> parse_query;;
 
 (* Close the connection that backs the given streams *)
 let terminate (ic, oc) =
@@ -134,7 +95,6 @@ let handle_client (ic, oc, addr) =
                 Response.make 200 "";
             | _ -> Response.make 405 ""
             end;
-        | "/query" -> Response.make 200 "Query.";
         | _ -> Response.make 404 "";
     in begin try
         Request.read ic |> handle_request |> Response.write oc;
