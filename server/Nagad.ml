@@ -121,8 +121,15 @@ let handle_client (ic, oc, addr) =
             | _ -> Response.make 405 "";
             end;
         | _ -> Response.make 404 "";
-    in begin try
-        Request.read ic |> handle_request |> Response.write oc;
+    in 
+    begin try
+        let request = Request.read ic in
+        let response = handle_request request in
+        printf "%5s %s -> %d (bytes %d)\n" 
+            request.meth request.uri
+            response.Response.code (String.length response.Response.body);
+        flush Pervasives.stdout;
+        Response.write oc response;
         terminate (ic, oc);
     with
         | e -> 
@@ -137,6 +144,8 @@ let main port =
     ADDR_INET (inet_addr_any, port) |> bind sock;
     listen sock 10;
 
+    printf "Listening for connections on port %d.\n" port; 
+    flush Pervasives.stdout;
     let rec accept_loop () = 
         let (csock, addr) = accept sock in
         let (ic, oc) = (in_channel_of_descr csock, out_channel_of_descr csock) in
