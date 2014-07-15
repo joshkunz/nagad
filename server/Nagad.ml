@@ -135,6 +135,7 @@ let handle_client (ic, oc, addr) =
         | e -> 
             Response.make 500 "" |> Response.write oc;
             terminate (ic, oc);
+            raise e;
     end;;
 
 let main port =
