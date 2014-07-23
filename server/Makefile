@@ -6,7 +6,7 @@ OCAMLFLAGS =  -thread -I ../include/
 
 bin = nagad
 
-sources = KG.ml Query.ml JsonExt.ml Nagad.ml 
+sources = KG.ml Query.ml JsonExt.ml TermColors.ml Nagad.ml 
 interfaces = $(patsubst %.mli,%.cmi,$(filter %.mli,$(sources)))
 interfaces += $(patsubst %.ml,%.cmi,$(filter %.ml,$(sources)))
 objects = $(patsubst %.ml,%.cmo,$(filter %.ml,$(sources)))

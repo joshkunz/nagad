@@ -2,14 +2,16 @@ open Sys
 open Printf
 open Unix 
 open List
-open KG 
-open Query
 open HTTP
 open Thread
 open Mutex
 open Jsonm
-open JsonExt
 open Buffer
+
+open KG 
+open Query
+open JsonExt
+open TermColors
 
 let graph = ref (KG.empty ());;
 let g = Mutex.create ();;
@@ -35,19 +37,21 @@ let json_for_graph g =
         |> JsonExt.decannonize enc |> ignore;
     Buffer.contents buf;;
 
+exception Graph_decode_error
+
 let graph_for_json j =
     let parse_edge g k = function 
         | Object [
              ("label", String l)
             ;("to", String t) ] ->
                 {KG.head = k; KG.rel = l; KG.tail = t} |> KG.madd_fact g
-        | _ -> raise JsonExt.Json_decode_error in
+        | _ -> raise Graph_decode_error in
     let parse_adj g = function
         | (k, Array adj) -> List.iter (parse_edge g k) adj
-        | _ -> raise JsonExt.Json_decode_error in
+        | _ -> raise Graph_decode_error in
     let parse_graph g = function
         | Object adj_lists -> List.iter (parse_adj g) adj_lists
-        | _ -> raise JsonExt.Json_decode_error in
+        | _ -> raise Graph_decode_error in
     let dec = Jsonm.decoder (`String j) in
     let graph = KG.empty () in
     JsonExt.cannonize dec |> parse_graph graph; graph;;
@@ -94,49 +98,60 @@ let sync l f a =
     with
     | x -> Mutex.unlock l; raise x;;
 
+let handle_request request = 
+    let open Request in
+    match request.uri with
+    | "/graph" -> 
+        begin match request.meth with
+        | "GET" -> 
+            sync g (fun _ -> json_for_graph !graph) () 
+                |> Response.make 200;
+        | "POST" ->
+            graph_for_json request.body
+                |> sync g (fun ug -> mjoin_graph_left !graph ug);
+            Response.make 200 "";
+        | _ -> Response.make 405 ""
+        end;
+    | "/query" ->
+        begin match request.meth with
+        | "POST" -> 
+            graph_for_json request.body
+                |> query_for_graph
+                |> sync g (fun q -> Query.query_graph !graph q) 
+                |> json_for_query_results
+                |> Response.make 200
+        | _ -> Response.make 405 "";
+        end;
+    | _ -> Response.make 404 "";;
+
+let response_code_color c = 
+    if c >= 0   && c < 100 then White else
+    if c >= 200 && c < 300 then Green else
+    if c >= 300 && c < 400 then Yellow else
+    if c >= 400 && c < 600 then Red else White;;
+
 (* Handle a connection from a client *)
 let handle_client (ic, oc, addr) = 
-    let open Request in 
-    let handle_request request = 
-        match request.uri with
-        | "/graph" -> 
-            begin match request.meth with
-            | "GET" -> 
-                sync g (fun _ -> json_for_graph !graph) () 
-                    |> Response.make 200;
-            | "POST" ->
-                graph_for_json request.body
-                    |> sync g (fun ug -> mjoin_graph_left !graph ug);
-                Response.make 200 "";
-            | _ -> Response.make 405 ""
-            end;
-        | "/query" ->
-            begin match request.meth with
-            | "POST" -> 
-                graph_for_json request.body
-                    |> query_for_graph
-                    |> sync g (fun q -> Query.query_graph !graph q) 
-                    |> json_for_query_results
-                    |> Response.make 200
-            | _ -> Response.make 405 "";
-            end;
-        | _ -> Response.make 404 "";
-    in 
-    begin try
-        let request = Request.read ic in
-        let response = handle_request request in
-        printf "%5s %s -> %d (bytes %d)\n" 
-            request.meth request.uri
-            response.Response.code (String.length response.Response.body);
-        flush Pervasives.stdout;
-        Response.write oc response;
-        terminate (ic, oc);
-    with
-        | e -> 
-            Response.make 500 "" |> Response.write oc;
-            terminate (ic, oc);
-            raise e;
-    end;;
+    let handle_request_safe request = 
+        try 
+            (handle_request request, None)
+        with e ->
+            (Response.make 500 "", Some e)
+    in
+    let request = Request.read ic in
+    let (response, ex) = handle_request_safe request in
+    Response.write oc response;
+    terminate (ic, oc);
+    printf "%s %s -> %s (bytes %d)\n" 
+        (sprintf "%5s" request.Request.meth |> color_text Yellow) 
+        request.Request.uri
+        (color_text (response_code_color response.Response.code) 
+                    (string_of_int response.Response.code))
+        (String.length response.Response.body);
+    flush Pervasives.stdout;
+    match ex with
+    | None -> ()
+    | Some e -> raise e;;
 
 let main port =
     let tcp = (getprotobyname "tcp").p_proto in
