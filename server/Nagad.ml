@@ -43,7 +43,11 @@ let graph_for_json j =
     let parse_edge g k = function 
         | Object [
              ("label", String l)
-            ;("to", String t) ] ->
+            ;("to", String t) ] 
+        (* XXX: Bad workaround to "to", "label" ordering problem. Fix. *)
+        | Object [
+             ("to", String t) 
+            ;("label", String l) ] ->
                 {KG.head = k; KG.rel = l; KG.tail = t} |> KG.madd_fact g
         | _ -> raise Graph_decode_error in
     let parse_adj g = function
@@ -103,6 +107,7 @@ let handle_request request =
     match request.uri with
     | "/graph" -> 
         begin match request.meth with
+        | "OPTIONS" -> Response.make 200 "";
         | "GET" -> 
             sync g (fun _ -> json_for_graph !graph) () 
                 |> Response.make 200;
@@ -114,6 +119,7 @@ let handle_request request =
         end;
     | "/query" ->
         begin match request.meth with
+        | "OPTIONS" -> Response.make 200 "";
         | "POST" -> 
             graph_for_json request.body
                 |> query_for_graph
@@ -130,6 +136,11 @@ let response_code_color c =
     if c >= 300 && c < 400 then Yellow else
     if c >= 400 && c < 600 then Red else White;;
 
+let add_access_control r = 
+    let set_header h v = fun x -> Response.set_header x h v in
+    r |> set_header "Access-Control-Allow-Origin" "*"
+      |> set_header "Access-Control-Allow-Methods" "POST, GET, OPTIONS, PUT";;
+
 (* Handle a connection from a client *)
 let handle_client (ic, oc, addr) = 
     let handle_request_safe request = 
@@ -139,11 +150,12 @@ let handle_client (ic, oc, addr) =
             (Response.make 500 "", Some e)
     in
     let request = Request.read ic in
+    print_endline request.Request.body;
     let (response, ex) = handle_request_safe request in
-    Response.write oc response;
+    add_access_control response |> Response.write oc;
     terminate (ic, oc);
     printf "%s %s -> %s (bytes %d)\n" 
-        (sprintf "%5s" request.Request.meth |> color_text Yellow) 
+        (sprintf "%7s" request.Request.meth |> color_text Yellow) 
         request.Request.uri
         (color_text (response_code_color response.Response.code) 
                     (string_of_int response.Response.code))
