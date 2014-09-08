@@ -53,11 +53,11 @@ let read_body hdrs ic buf =
         let len = Header.get_header hdrs "Content-Length" |> int_of_string in
         let body = String.create len in
         let body_in_buffer = buf.lex_buffer_len - buf.lex_curr_pos in
-        if body_in_buffer > 0 then begin
+        if body_in_buffer > 0 then 
             String.blit buf.lex_buffer buf.lex_curr_pos body 0 body_in_buffer;
-            if len - body_in_buffer > 0 then
-                really_input ic body body_in_buffer (len - body_in_buffer);
-        end; body;
+        if len - body_in_buffer > 0 then
+            really_input ic body body_in_buffer (len - body_in_buffer);
+        body;
     with
     | Header_not_found -> "";;
 
