@@ -181,4 +181,9 @@ let main port =
         accept_loop () in
     accept_loop ();;
 
-main 8080;;
+match Sys.argv with 
+| [| name |] -> main 8080;
+| [| name; port |] -> int_of_string port |> main;
+| _ -> 
+    prerr_endline "Unrecognized command line arguments.";
+    Pervasives.exit 1;;
