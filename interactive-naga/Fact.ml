@@ -1,31 +1,8 @@
 open List
-open String
 open Common
-open Hashtbl
 
-(* The keys in our table are the nodes, so we use strings *)
-module Graph = Hashtbl.Make(String);;
-type edge = {out: string, label: string};;
-type fact = {head: string, rel: string, tail: string};;
-
-let add_fact g f =
-    let e = {out: f.tail, label: f.rel} in
-    if Graph.mem g f.head then
-        e :: (Graph.find g f.head) |> Graph.replace g f.head
-    else
-        Graph.replace g f.head [e];;
-
-let remove_fact g f =
-    let remove_edge l e =
-        match l with 
-        | [] -> []
-        | {out: o, label: la} :: l when o = e.out && la = e.label -> l
-        | _e :: l -> _e :: remove_edge l e
-    in
-    let e = {out: f.tail, label: f.rel} in
-    try
-        (Graph.find g f.head |> remove_edge) e |> Graph.replace g f.head
-    with Not_found -> ();;
+type fact = {head: string; rel: string; tail: string};;
+type fact_db = fact list;;
 
 let string_for_fact f =
     "fact(" ^ 

@@ -1,6 +1,6 @@
 [submodule "lib/jsonm/jsonm-src"]
 	path = lib/jsonm/jsonm-src
-	url = git@gitlab.flux.utah.edu:kg/jsonm.git
+    url = https://github.com/dbuenzli/jsonm.git
 [submodule "lib/uutf/uutf-src"]
 	path = lib/uutf/uutf-src
-	url = git@gitlab.flux.utah.edu:kg/uutf.git
+    url = https://github.com/dbuenzli/uutf.git
