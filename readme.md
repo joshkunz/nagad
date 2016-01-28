@@ -8,6 +8,9 @@ The directory `interactive-naga` contains a very simple implementation that
 is built around a datalog-like query interface. The version in `server` answers
 queries posed in a json format over HTTP (see below for details). 
 To build the old interactive version, see the readme in that directory.
+Also of interest is `lib/http` which is an HTTP parsing library I implemented
+from scratch. While it's nowhere near complete, it could still serve as a good
+springboard for a more complete HTTP parsing implementation.
 
 This is code that was developed by me at the University of Utah. I'm re-hosting
 it here for disoverability (github has good google-juice for code). The
